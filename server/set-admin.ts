@@ -1,23 +1,20 @@
 
-import fetch from "node-fetch";
+import axios from "axios";
 
 async function makeAdmin() {
   try {
-    const response = await fetch("http://0.0.0.0:5000/api/admin/set-role?adminToken=admin123", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        userId: 1, // Yeni kayıt olan kullanıcı ID'si genelde 1'dir
-        role: "admin"
-      })
+    const response = await axios.post("http://0.0.0.0:5000/api/admin/set-role", {
+      userId: 1,
+      role: "admin"
+    }, {
+      params: {
+        adminToken: "admin123"
+      }
     });
 
-    const result = await response.json();
-    console.log("Sonuç:", result);
+    console.log("Sonuç:", response.data);
   } catch (error) {
-    console.error("Hata:", error);
+    console.error("Hata:", error.message);
   }
 }
 
