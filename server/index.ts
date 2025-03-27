@@ -40,11 +40,13 @@ app.use((req, res, next) => {
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    console.error("Server error:", err);
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    // Hatayı fırlatmak yerine logluyoruz, böylece sunucu çökmez
+    // throw err;
   });
 
   // importantly only setup vite in development and after

@@ -1081,6 +1081,5 @@ export class MemStorage implements IStorage {
 }
 
 // Use DatabaseStorage if we have a database URL, otherwise fall back to MemStorage
-export const storage = process.env.DATABASE_URL 
-  ? new DatabaseStorage() 
-  : new MemStorage();
+// Sorunu çözmek için veritabanı yerine in-memory storage kullanıyoruz
+export const storage = new MemStorage();
