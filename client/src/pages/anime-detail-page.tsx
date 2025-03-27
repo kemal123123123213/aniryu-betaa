@@ -106,9 +106,9 @@ export default function AnimeDetailPage() {
     }
   };
   
-  // Generate fake episode data for this demo
+  // Generate episode data for the anime
   // In a real application, this would come from an API
-  const generateEpisodes = (count: number) => {
+  const generateEpisodes = (count: number | null) => {
     return Array.from({ length: count || 12 }, (_, i) => ({
       id: i + 1,
       title: `Bölüm ${i + 1}`,
@@ -120,13 +120,13 @@ export default function AnimeDetailPage() {
     }));
   };
   
-  const episodes = anime ? generateEpisodes(anime.episodes) : [];
+  const episodes = anime ? generateEpisodes(anime.episodes || 12) : [];
   
   // Get recommendations based on this anime
   const recommendations = anime?.recommendations?.nodes
-    ?.map(node => node.mediaRecommendation)
+    ?.map((node: any) => node.mediaRecommendation)
     ?.filter(Boolean)
-    ?.map(rec => ({
+    ?.map((rec: any) => ({
       id: rec.id,
       title: rec.title?.romaji || rec.title?.english,
       coverImage: rec.coverImage?.large,
@@ -179,7 +179,7 @@ export default function AnimeDetailPage() {
   }
   
   // Process anime data
-  const title = anime.title?.turkish || anime.title?.romaji || anime.title?.english;
+  const title: string = anime.title?.turkish || anime.title?.romaji || anime.title?.english || '';
   const genres = anime.genres?.join(', ') || 'Kategori bilgisi yok';
   const description = anime.description?.replace(/<[^>]*>?/gm, '') || 'Açıklama bulunmuyor';
   const startYear = anime.startDate?.year || 'Bilinmiyor';
@@ -219,7 +219,7 @@ export default function AnimeDetailPage() {
         {anime.bannerImage ? (
           <img 
             src={anime.bannerImage} 
-            alt={title} 
+            alt={title || "Anime Banner"} 
             className="h-full w-full object-cover opacity-40"
           />
         ) : (
@@ -234,8 +234,8 @@ export default function AnimeDetailPage() {
           {/* Poster */}
           <div className="w-full md:w-64 flex-shrink-0">
             <img 
-              src={anime.coverImage?.extraLarge || anime.coverImage?.large} 
-              alt={title} 
+              src={anime.coverImage?.extraLarge || anime.coverImage?.large || ''} 
+              alt={title || "Anime Cover"} 
               className="w-full h-auto rounded-lg shadow-lg"
             />
           </div>
@@ -387,11 +387,11 @@ export default function AnimeDetailPage() {
                     </div>
                   </div>
                   
-                  {anime.studios?.nodes?.length > 0 && (
+                  {anime.studios?.nodes && anime.studios.nodes.length > 0 && (
                     <div>
                       <h4 className="font-semibold mb-2 text-gray-200">Stüdyolar</h4>
                       <div className="flex flex-wrap gap-2">
-                        {anime.studios.nodes.map((studio) => (
+                        {anime.studios.nodes.map((studio: any) => (
                           <span 
                             key={studio.id} 
                             className="bg-[#3a3a3a] text-gray-300 rounded-full px-3 py-1 text-sm"
@@ -411,7 +411,7 @@ export default function AnimeDetailPage() {
         {/* AI Analysis */}
         <AIAnalysis 
           animeId={anime.id} 
-          title={title} 
+          title={title || ''} 
           genres={anime.genres || []} 
         />
         

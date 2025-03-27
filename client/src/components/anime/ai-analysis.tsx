@@ -27,8 +27,7 @@ export function AIAnalysis({ animeId, title, genres }: AIAnalysisProps) {
   const [showAnalysis, setShowAnalysis] = useState(false);
   
   // Clean up genres - make sure we have a valid array
-  const cleanGenres = Array.isArray(genres) ? genres : 
-    (typeof genres === 'string' ? genres.split(',').map(g => g.trim()) : []);
+  const cleanGenres: string[] = Array.isArray(genres) ? genres : [];
 
   const { 
     data, 

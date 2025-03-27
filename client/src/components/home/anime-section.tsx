@@ -5,6 +5,7 @@ import { ArrowRight } from 'lucide-react';
 
 export interface AnimeSectionProps {
   title: string;
+  icon?: React.ReactNode;
   animeList: Array<{
     id: number;
     title: string;
@@ -19,6 +20,7 @@ export interface AnimeSectionProps {
 
 export function AnimeSection({ 
   title, 
+  icon,
   animeList, 
   viewAllLink,
   isLoading,
@@ -27,7 +29,10 @@ export function AnimeSection({
   return (
     <section className="container mx-auto px-6 md:px-8 mb-12">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold font-sans">{title}</h2>
+        <h2 className="text-2xl font-bold font-sans flex items-center">
+          {icon && <span className="mr-2">{icon}</span>}
+          {title}
+        </h2>
         {viewAllLink && (
           <Link href={viewAllLink}>
             <a className="text-primary hover:text-primary-light text-sm font-medium flex items-center">
@@ -68,7 +73,7 @@ export function AnimeSection({
               id={anime.id}
               title={anime.title}
               image={anime.coverImage}
-              score={anime.averageScore ? (anime.averageScore / 10).toFixed(1) : undefined}
+              score={anime.averageScore ? Number((anime.averageScore / 10).toFixed(1)) : undefined}
               genres={anime.genres}
             />
           ))}
