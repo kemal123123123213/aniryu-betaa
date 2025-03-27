@@ -1,6 +1,9 @@
 import { drizzle } from "drizzle-orm/neon-serverless";
-import { neon } from "@neondatabase/serverless";
+import { neon, neonConfig } from "@neondatabase/serverless";
 import * as schema from "@shared/schema";
+
+// Prepare WebSocket connection for serverless environments
+neonConfig.fetchConnectionCache = true;
 
 // Set up Neon connection
 export const sql = neon(process.env.DATABASE_URL!);

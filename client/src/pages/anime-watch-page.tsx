@@ -52,9 +52,8 @@ function ReactionSection({ animeId, episodeId }: ReactionProps) {
   const socketRef = useRef<WebSocket | null>(null);
   
   // Bölüme ait reaksiyonları getir
-  const { data: reactions = [], isLoading } = useQuery({
-    queryKey: [`/api/anime/${animeId}/episode/${episodeId}/reactions`],
-    queryFn: getQueryFn({ on401: "returnNull" })
+  const { data: reactions = [], isLoading } = useQuery<any[]>({
+    queryKey: [`/api/anime/${animeId}/episode/${episodeId}/reactions`]
   });
   
   // Son 5 reaksiyonu gösterecek şekilde filtrele
@@ -185,9 +184,8 @@ function CommentSection({ animeId, episodeId }: CommentSectionProps) {
   const commentInputRef = useRef<HTMLInputElement>(null);
   
   // Bölüme ait yorumları getir
-  const { data: comments = [], isLoading } = useQuery({
-    queryKey: [`/api/anime/${animeId}/episode/${episodeId}/comments`],
-    queryFn: getQueryFn({ on401: "returnNull" })
+  const { data: comments = [], isLoading } = useQuery<any[]>({
+    queryKey: [`/api/anime/${animeId}/episode/${episodeId}/comments`]
   });
   
   // Yorum gönder
@@ -247,7 +245,7 @@ function CommentSection({ animeId, episodeId }: CommentSectionProps) {
         <form onSubmit={handleSubmitComment} className="mb-8">
           <div className="flex gap-3 items-start">
             <Avatar className="w-10 h-10">
-              <AvatarImage src={null} />
+              <AvatarImage src="" />
               <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
@@ -292,7 +290,7 @@ function CommentSection({ animeId, episodeId }: CommentSectionProps) {
             <div key={comment.id} className="group">
               <div className="flex gap-3 items-start">
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src={null} />
+                  <AvatarImage src="" />
                   <AvatarFallback className="bg-[#333]">
                     {comment.user?.username?.slice(0, 2).toUpperCase() || 'AN'}
                   </AvatarFallback>
@@ -343,9 +341,8 @@ function PollSection({ animeId, episodeId }: PollSectionProps) {
   const [showPollDrawer, setShowPollDrawer] = useState(false);
   
   // Bölüme ait anketleri getir
-  const { data: polls = [], isLoading: isLoadingPolls } = useQuery({
-    queryKey: [`/api/anime/${animeId}/episode/${episodeId}/polls`],
-    queryFn: getQueryFn({ on401: "returnNull" })
+  const { data: polls = [], isLoading: isLoadingPolls } = useQuery<any[]>({
+    queryKey: [`/api/anime/${animeId}/episode/${episodeId}/polls`]
   });
   
   // Eğer açık anket varsa onu göster
@@ -353,16 +350,14 @@ function PollSection({ animeId, episodeId }: PollSectionProps) {
   const latestPoll = activePolls.length > 0 ? activePolls[0] : null;
   
   // Anket seçeneklerini getir
-  const { data: options = [], isLoading: isLoadingOptions } = useQuery({
+  const { data: options = [], isLoading: isLoadingOptions } = useQuery<any[]>({
     queryKey: [`/api/polls/${latestPoll?.id}/options`],
-    queryFn: getQueryFn({ on401: "returnNull" }),
     enabled: !!latestPoll
   });
   
   // Anket oylarını getir
-  const { data: votes = [], isLoading: isLoadingVotes } = useQuery({
+  const { data: votes = [], isLoading: isLoadingVotes } = useQuery<any[]>({
     queryKey: [`/api/polls/${latestPoll?.id}/votes`],
-    queryFn: getQueryFn(),
     enabled: !!latestPoll
   });
   
@@ -524,7 +519,7 @@ export default function AnimeWatchPage() {
   
   // Generate fake episode data for this demo
   // In a real application, this would come from an API
-  const generateEpisodes = (count: number) => {
+  const generateEpisodes = (count: number | null) => {
     return Array.from({ length: count || 12 }, (_, i) => ({
       id: i + 1,
       title: `Bölüm ${i + 1}`,
@@ -533,7 +528,7 @@ export default function AnimeWatchPage() {
     }));
   };
   
-  const episodes = anime ? generateEpisodes(anime.episodes) : [];
+  const episodes = anime ? generateEpisodes(anime.episodes || 12) : [];
   const currentEpisode = episodes.find(ep => ep.id === episodeId);
   
   // For demo purposes, create a static video URL
@@ -702,12 +697,12 @@ export default function AnimeWatchPage() {
             animeId={Number(id)}
             episodeId={episodeId}
             duration={currentEpisode.duration}
-            title={title}
+            title={title || ""}
             episodeTitle={`Bölüm ${episodeId}`}
             subtitles={subtitles}
             onNext={nextEpisodeAvailable ? goToNextEpisode : undefined}
             nextEpisodeAvailable={nextEpisodeAvailable}
-            thumbnailUrl={anime.coverImage?.medium || undefined}
+            thumbnailUrl={anime.coverImage?.medium || ""}
           />
           
           {/* Reaksiyon bileşeni */}

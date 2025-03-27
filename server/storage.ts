@@ -17,11 +17,9 @@ import { randomBytes } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { eq, and, desc, asc, isNull } from "drizzle-orm";
-import connectPg from "connect-pg-simple";
 import { db } from "./db";
 
 const MemoryStore = createMemoryStore(session);
-const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   // User methods
@@ -101,9 +99,8 @@ export class DatabaseStorage implements IStorage {
     }
     
     // Set up session store
-    this.sessionStore = new PostgresSessionStore({
-      conString: process.env.DATABASE_URL,
-      createTableIfMissing: true,
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000 // 24 hours
     });
     
     console.log("PostgreSQL database connection established");
