@@ -5,8 +5,11 @@ import { HeroSection } from '@/components/home/hero-section';
 import { AnimeSection } from '@/components/home/anime-section';
 import { ContinueWatching } from '@/components/home/continue-watching';
 import { Categories } from '@/components/home/categories';
+import { AiWhatToWatch, AiPersonalizedRecommendations } from '@/components/home/ai-recommendations';
 import { usePopularAnime, useSeasonalAnime, useTrendingAnime } from '@/hooks/use-anilist';
 import { useRecommendations } from '@/hooks/use-recommendations';
+import { Badge } from '@/components/ui/badge';
+import { Sparkles } from 'lucide-react';
 
 export default function HomePage() {
   const { data: popularAnime, isLoading: popularLoading, error: popularError } = usePopularAnime();
@@ -41,6 +44,23 @@ export default function HomePage() {
         {/* Hero Section */}
         <HeroSection featuredAnimeId={featuredAnimeId} />
         
+        {/* New Feature Badge */}
+        <div className="flex justify-center mt-6">
+          <Badge className="bg-gradient-to-r from-indigo-600 to-purple-600 py-1.5 px-4 text-white text-sm gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            YENİ! AI Destekli Kişiselleştirilmiş Öneriler
+          </Badge>
+        </div>
+        
+        {/* AI What to Watch Today */}
+        <AiWhatToWatch />
+        
+        {/* Continue Watching Section */}
+        <ContinueWatching />
+        
+        {/* AI Personalized Recommendations */}
+        <AiPersonalizedRecommendations />
+        
         {/* Recommended Section */}
         <AnimeSection
           title="Senin İçin Önerilenler"
@@ -48,9 +68,6 @@ export default function HomePage() {
           viewAllLink="/kategori/all"
           isLoading={recommendationsLoading}
         />
-        
-        {/* Continue Watching Section */}
-        <ContinueWatching />
         
         {/* Categories */}
         <Categories />

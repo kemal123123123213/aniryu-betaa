@@ -9,6 +9,7 @@ import {
   insertEpisodeCommentSchema, insertEpisodeReactionSchema,
   insertEpisodePollSchema, insertPollOptionSchema, insertPollVoteSchema
 } from "@shared/schema";
+import { aiService } from "./services/ai-service";
 
 function isAuthenticated(req: any, res: any, next: any) {
   if (req.isAuthenticated()) {
@@ -339,7 +340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Recommendations endpoint - enhanced to use watch history
+  // Recommendations endpoint - enhanced to use watch history and AI
   app.get("/api/recommendations", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user!.id;
@@ -366,6 +367,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ animeIds: recommendations });
     } catch (error) {
       res.status(500).json({ message: "Önerileri getirirken bir hata oluştu" });
+    }
+  });
+  
+  // AI powered recommendation endpoints
+  app.get("/api/ai/recommendations", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const recommendations = await aiService.getPersonalizedRecommendations(userId);
+      res.json({ recommendations });
+    } catch (error) {
+      console.error("AI recommendation error:", error);
+      res.status(500).json({ message: "Öneriler alınırken bir hata oluştu" });
+    }
+  });
+  
+  app.get("/api/ai/what-to-watch", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const recommendation = await aiService.getWhatToWatchToday(userId);
+      res.json({ recommendation });
+    } catch (error) {
+      console.error("AI watch recommendation error:", error);
+      res.status(500).json({ message: "Öneri alınırken bir hata oluştu" });
+    }
+  });
+  
+  app.get("/api/ai/anime-analysis", isAuthenticated, async (req, res) => {
+    try {
+      const animeId = parseInt(req.query.animeId as string);
+      const title = req.query.title as string;
+      const genres = (req.query.genres as string || '').split(',');
+      
+      if (isNaN(animeId) || !title) {
+        return res.status(400).json({ message: "Geçersiz anime bilgileri" });
+      }
+      
+      const analysis = await aiService.getAnimeAnalysis(animeId, title, genres);
+      res.json(analysis);
+    } catch (error) {
+      console.error("AI anime analysis error:", error);
+      res.status(500).json({ message: "Anime analizi alınırken bir hata oluştu" });
     }
   });
   

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AnimeSection } from '@/components/home/anime-section';
+import { AIAnalysis } from '@/components/anime/ai-analysis';
 import { Play, Heart, Plus, Calendar, Clock, Star, Users, Award, Info } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -406,6 +407,13 @@ export default function AnimeDetailPage() {
             </TabsContent>
           </Tabs>
         </div>
+        
+        {/* AI Analysis */}
+        <AIAnalysis 
+          animeId={anime.id} 
+          title={title} 
+          genres={anime.genres || []} 
+        />
         
         {/* Recommendations */}
         {recommendations.length > 0 && (
