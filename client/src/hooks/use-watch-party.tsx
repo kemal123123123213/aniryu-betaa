@@ -94,29 +94,43 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
   
   // Connect to WebSocket when party is active
   const connectToParty = useCallback((partyId: number) => {
-    if (!user) return;
+    // Kullanıcı kimliğini belirle (oturum açılmadıysa misafir kimliği kullan)
+    const currentUserId = user ? user.id : 1;
+    const currentUsername = user ? user.username : 'Misafir';
     
-    const ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`);
+    // WebSocket bağlantısı oluştur
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
     
+    // Bağlantı açıldığında ilk mesajı gönder
     ws.onopen = () => {
+      console.log('WebSocket bağlantısı kuruldu');
       setIsConnected(true);
-      // Join the party room
-      ws.send(JSON.stringify({
-        type: 'join',
-        partyId,
-        userId: user.id
-      }));
+      
+      // İlk olarak basit bir "join" mesajı gönder (eski format uyumluluğu için)
+      ws.send('join');
+      
+      // Sonra detaylı bilgileri JSON formatında gönder
+      setTimeout(() => {
+        ws.send(JSON.stringify({
+          type: 'join',
+          partyId,
+          userId: currentUserId,
+          username: currentUsername
+        }));
+      }, 500);
     };
     
     ws.onclose = () => {
+      console.log('WebSocket bağlantısı kapatıldı');
       setIsConnected(false);
     };
     
     ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('WebSocket hatası:', error);
       toast({
         title: "Bağlantı hatası",
-        description: "İzleme partisine bağlantı kurulamadı",
+        description: "İzleme partisine bağlantı kurulamadı. Lütfen tekrar deneyin.",
         variant: "destructive"
       });
     };
@@ -211,36 +225,64 @@ export function useWatchParty(options: UseWatchPartyOptions = {}) {
   const syncVideoState = useCallback((currentTime: number, isPlaying: boolean) => {
     if (!isConnected || !activeParty || !wsRef.current) return;
     
-    wsRef.current.send(JSON.stringify({
-      type: 'sync',
-      partyId: activeParty.id,
-      currentTime,
-      isPlaying
-    }));
+    // İlk olarak basit string mesajı gönder (eski format uyumluluğu için)
+    const ws = wsRef.current;
+    ws.send('sync');
+    
+    // Sonra detaylı bilgileri JSON formatında gönder
+    setTimeout(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'sync',
+          partyId: activeParty.id,
+          currentTime,
+          isPlaying
+        }));
+      }
+    }, 100);
   }, [isConnected, activeParty]);
   
   // Send chat message
   const sendChatMessage = useCallback((content: string) => {
-    if (!isConnected || !activeParty || !user || !wsRef.current) return;
+    if (!isConnected || !activeParty || !wsRef.current) return;
     
-    wsRef.current.send(JSON.stringify({
-      type: 'chat',
-      partyId: activeParty.id,
-      userId: user.id,
-      content
-    }));
+    // Kullanıcı kimliğini belirle
+    const currentUserId = user ? user.id : 1;
+    const currentUsername = user ? user.username : 'Misafir';
+    
+    // İlk olarak basit string mesajı gönder (eski format uyumluluğu için)
+    const ws = wsRef.current;
+    ws.send('chat');
+    
+    // Sonra detaylı bilgileri JSON formatında gönder
+    setTimeout(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'chat',
+          partyId: activeParty.id,
+          userId: currentUserId,
+          username: currentUsername,
+          content
+        }));
+      }
+    }, 100);
   }, [isConnected, activeParty, user]);
   
   // Leave the party
   const leaveParty = useCallback(() => {
     if (activeParty && wsRef.current) {
-      wsRef.current.send(JSON.stringify({
-        type: 'leave',
-        partyId: activeParty.id,
-        userId: user?.id
-      }));
+      const ws = wsRef.current;
       
-      wsRef.current.close();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'leave',
+          partyId: activeParty.id,
+          userId: user?.id || 1
+        }));
+        
+        ws.close();
+      }
+      
       setActiveParty(null);
       setParticipants([]);
       setChatMessages([]);

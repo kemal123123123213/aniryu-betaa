@@ -138,6 +138,16 @@ export function Navbar() {
                         <span>Ayarlar</span>
                       </DropdownMenuItem>
                     </Link>
+                    <Link href="/admin">
+                      <DropdownMenuItem className="cursor-pointer hover:bg-[#3a3a3a] hover:text-primary focus:bg-[#3a3a3a] focus:text-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 h-4 w-4">
+                          <path d="M12 4.5a2.5 2.5 0 0 0-4.96-.46 2.5 2.5 0 0 0-1.98 3 2.5 2.5 0 0 0 3.32 3.32 2.5 2.5 0 1 0 3.62-5.85Z"></path>
+                          <path d="m8 8-5 5a1 1 0 0 0 0 1.41l5.61 5.61c.39.38 1.03.38 1.41 0L15 15"></path>
+                          <path d="m15 8 5 5a1 1 0 0 1 0 1.41l-5.61 5.61c-.39.38-1.03.38-1.41 0L8 15"></path>
+                        </svg>
+                        <span>Admin Paneli</span>
+                      </DropdownMenuItem>
+                    </Link>
                     <DropdownMenuSeparator className="bg-[#3a3a3a]" />
                     <DropdownMenuItem 
                       onClick={handleLogout}
@@ -176,6 +186,7 @@ export function Navbar() {
                         <>
                           <MobileNavLink href="/profil" label="Profilim" />
                           <MobileNavLink href="/profil?tab=settings" label="Ayarlar" />
+                          <MobileNavLink href="/admin" label="Admin Paneli" />
                           <button 
                             onClick={handleLogout}
                             className="w-full flex items-center px-4 py-3 text-left text-red-400 hover:bg-[#2a2a2a] rounded-md transition-colors"

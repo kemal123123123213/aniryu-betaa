@@ -173,13 +173,14 @@ export const insertWatchPartySchema = createInsertSchema(watchParties).pick({
 
 // Etkileşimli özellikler için şemalar
 export const insertEpisodeCommentSchema = createInsertSchema(episodeComments).pick({
-  userId: true,
   animeId: true,
   episodeId: true,
   content: true,
   timestamp: true,
   parentId: true,
 }).extend({
+  userId: z.number().optional(),
+  username: z.string().optional(),
   timestamp: z.number().optional(),
   parentId: z.number().optional()
 });

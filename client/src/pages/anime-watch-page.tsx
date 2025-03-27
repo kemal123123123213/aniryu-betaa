@@ -181,6 +181,7 @@ interface CommentSectionProps {
 function CommentSection({ animeId, episodeId }: CommentSectionProps) {
   const { user } = useAuth();
   const [comment, setComment] = useState('');
+  const [username, setUsername] = useState('Misafir');
   const commentInputRef = useRef<HTMLInputElement>(null);
   
   // Bölüme ait yorumları getir
@@ -195,6 +196,8 @@ function CommentSection({ animeId, episodeId }: CommentSectionProps) {
         animeId,
         episodeId,
         content: commentText,
+        username: user ? user.username : username,
+        userId: user ? user.id : undefined,
         parentId: null,
         timestamp: Math.floor(Date.now() / 1000)
       });
@@ -204,12 +207,14 @@ function CommentSection({ animeId, episodeId }: CommentSectionProps) {
       setComment('');
       // Yorumları yeniden getir
       queryClient.invalidateQueries({ queryKey: [`/api/anime/${animeId}/episode/${episodeId}/comments`] });
+    },
+    onError: (error) => {
+      console.error("Yorum gönderme hatası:", error);
     }
   });
   
   const handleSubmitComment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
     if (comment.trim()) {
       commentMutation.mutate(comment);
     }
@@ -241,48 +246,49 @@ function CommentSection({ animeId, episodeId }: CommentSectionProps) {
   
   return (
     <div className="bg-[#2a2a2a] rounded-lg p-6">
-      {user ? (
-        <form onSubmit={handleSubmitComment} className="mb-8">
-          <div className="flex gap-3 items-start">
-            <Avatar className="w-10 h-10">
-              <AvatarImage src="" />
-              <AvatarFallback>{user.username.slice(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
+      <form onSubmit={handleSubmitComment} className="mb-8">
+        <div className="flex gap-3 items-start">
+          <Avatar className="w-10 h-10">
+            <AvatarImage src="" />
+            <AvatarFallback>{user ? user.username.slice(0, 2).toUpperCase() : username.slice(0, 2).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
+            {user ? (
               <p className="text-sm font-medium mb-1">{user.username}</p>
-              <div className="flex gap-2">
+            ) : (
+              <div className="flex gap-2 mb-2">
                 <Input
-                  ref={commentInputRef}
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Bir yorum yaz..."
-                  className="flex-1 bg-[#333] border-0"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="İsminiz"
+                  className="w-1/3 bg-[#333] border-0"
                 />
-                <Button 
-                  type="submit" 
-                  disabled={commentMutation.isPending}
-                  className="bg-primary hover:bg-primary/90"
-                >
-                  {commentMutation.isPending ? (
-                    <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </Button>
+                <p className="text-xs text-gray-400 self-center">(Misafir olarak yorum yapıyorsunuz)</p>
               </div>
+            )}
+            <div className="flex gap-2">
+              <Input
+                ref={commentInputRef}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Bir yorum yaz..."
+                className="flex-1 bg-[#333] border-0"
+              />
+              <Button 
+                type="submit" 
+                disabled={commentMutation.isPending}
+                className="bg-primary hover:bg-primary/90"
+              >
+                {commentMutation.isPending ? (
+                  <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
             </div>
           </div>
-        </form>
-      ) : (
-        <div className="mb-8 p-4 border border-dashed border-gray-700 rounded-lg text-center">
-          <p className="text-gray-400 mb-2">Yorum yapmak için giriş yapmalısınız</p>
-          <Link href="/auth">
-            <Button variant="outline" className="border-gray-700 hover:bg-gray-700">
-              Giriş Yap
-            </Button>
-          </Link>
         </div>
-      )}
+      </form>
       
       {comments.length > 0 ? (
         <div className="space-y-6">
