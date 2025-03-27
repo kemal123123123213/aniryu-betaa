@@ -66,7 +66,7 @@ export function Navbar() {
               <NavLink href="/kategori/all" label="Keşfet" />
               <NavLink href="/kategori/seasonal" label="Güncel" />
               <NavLink href="/kategori/popular" label="Popüler" />
-              <NavLink href="/profil?tab=favorites" label="Listelerim" />
+              {user && <NavLink href="/profil?tab=favorites" label="Listelerim" />}
             </nav>
             
             {/* Search - Desktop */}
@@ -101,7 +101,7 @@ export function Navbar() {
                 <Search className="h-5 w-5" />
               </Button>
               
-              {user && (
+              {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="flex items-center space-x-1 p-1 hover:bg-transparent">
@@ -158,6 +158,19 @@ export function Navbar() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              ) : (
+                <div className="hidden md:flex items-center space-x-2">
+                  <Link href="/auth">
+                    <Button className="bg-transparent hover:bg-primary/10 text-primary">
+                      Giriş Yap
+                    </Button>
+                  </Link>
+                  <Link href="/auth?register=true">
+                    <Button className="bg-primary hover:bg-primary/90">
+                      Kayıt Ol
+                    </Button>
+                  </Link>
+                </div>
               )}
               
               {/* Mobile Menu */}
@@ -178,7 +191,7 @@ export function Navbar() {
                       <MobileNavLink href="/kategori/all" label="Keşfet" />
                       <MobileNavLink href="/kategori/seasonal" label="Güncel" />
                       <MobileNavLink href="/kategori/popular" label="Popüler" />
-                      <MobileNavLink href="/profil?tab=favorites" label="Listelerim" />
+                      {user && <MobileNavLink href="/profil?tab=favorites" label="Listelerim" />}
                     </div>
                     
                     <div className="mt-auto py-6 border-t border-[#3a3a3a]">
@@ -196,11 +209,18 @@ export function Navbar() {
                           </button>
                         </>
                       ) : (
-                        <Link href="/auth">
-                          <button className="w-full bg-primary hover:bg-primary/90 text-white py-3 rounded-md transition-colors">
-                            Giriş Yap
-                          </button>
-                        </Link>
+                        <div className="space-y-3">
+                          <Link href="/auth">
+                            <button className="w-full bg-transparent border border-primary text-primary hover:bg-primary/10 py-3 rounded-md transition-colors">
+                              Giriş Yap
+                            </button>
+                          </Link>
+                          <Link href="/auth?register=true">
+                            <button className="w-full bg-primary hover:bg-primary/90 text-white py-3 rounded-md transition-colors">
+                              Kayıt Ol
+                            </button>
+                          </Link>
+                        </div>
                       )}
                     </div>
                   </div>

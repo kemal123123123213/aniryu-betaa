@@ -31,11 +31,8 @@ function isAdmin(req: any, res: any, next: any) {
     return next();
   }
   
-  // Demo modu için erişim sağla
-  return next();
-  
-  // Gerçek dünyada sadece bu kullan:
-  // res.status(403).json({ message: "Bu işlem için admin yetkisi gerekiyor" });
+  // Kullanıcı admin değilse, erişime izin verme
+  return res.status(403).json({ message: "Bu işlem için admin yetkisi gerekiyor" });
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
