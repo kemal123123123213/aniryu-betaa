@@ -806,7 +806,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   client.send(JSON.stringify({
                     type: 'participant_joined',
                     partyId,
-                    userId
+                    userId,
+                    username: message.username || `Kullanıcı ${userId}`
                   }));
                 }
               });
@@ -856,6 +857,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     type: 'chat_message',
                     partyId,
                     userId,
+                    username: message.username || `Kullanıcı ${userId}`,
                     content,
                     timestamp: new Date().toISOString()
                   }));

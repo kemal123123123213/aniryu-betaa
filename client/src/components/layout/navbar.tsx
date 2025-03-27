@@ -244,11 +244,9 @@ function NavLink({ href, label }: { href: string; label: string }) {
     (href !== "/" && location.startsWith(href));
 
   return (
-    <Link href={href}>
-      <a className={`nav-link ${isActive ? 'active font-medium text-white' : 'font-medium text-gray-300 hover:text-white'} relative`}>
-        {label}
-        <span className={`absolute bottom-[-4px] left-0 w-0 h-[2px] bg-primary transition-all duration-300 ${isActive ? 'w-full' : ''}`}></span>
-      </a>
+    <Link href={href} className={`nav-link ${isActive ? 'active font-medium text-white' : 'font-medium text-gray-300 hover:text-white'} relative`}>
+      {label}
+      <span className={`absolute bottom-[-4px] left-0 w-0 h-[2px] bg-primary transition-all duration-300 ${isActive ? 'w-full' : ''}`}></span>
     </Link>
   );
 }
@@ -259,10 +257,11 @@ function MobileNavLink({ href, label }: { href: string; label: string }) {
     (href !== "/" && location.startsWith(href));
 
   return (
-    <Link href={href}>
-      <a className={`block px-4 py-3 rounded-md transition-colors ${isActive ? 'bg-[#2a2a2a] text-primary' : 'text-white hover:bg-[#2a2a2a]'}`}>
-        {label}
-      </a>
+    <Link 
+      href={href}
+      className={`block px-4 py-3 rounded-md transition-colors ${isActive ? 'bg-[#2a2a2a] text-primary' : 'text-white hover:bg-[#2a2a2a]'}`}
+    >
+      {label}
     </Link>
   );
 }
