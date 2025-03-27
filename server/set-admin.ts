@@ -3,13 +3,13 @@ import fetch from "node-fetch";
 
 async function makeAdmin() {
   try {
-    const response = await fetch("http://localhost:5000/api/admin/set-role?adminToken=admin123", {
+    const response = await fetch("http://0.0.0.0:5000/api/admin/set-role?adminToken=admin123", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        userId: 1,
+        userId: 1, // Yeni kayıt olan kullanıcı ID'si genelde 1'dir
         role: "admin"
       })
     });
