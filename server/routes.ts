@@ -17,9 +17,105 @@ function isAuthenticated(req: any, res: any, next: any) {
   res.status(401).json({ message: "Giriş yapmalısınız" });
 }
 
+function isAdmin(req: any, res: any, next: any) {
+  if (req.isAuthenticated() && req.user.role === 'admin') {
+    return next();
+  }
+  res.status(403).json({ message: "Bu işlem için admin yetkisi gerekiyor" });
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
+  
+  // Admin API routes
+  app.get("/api/admin/users", isAdmin, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ message: "Kullanıcılar getirilirken bir hata oluştu" });
+    }
+  });
+  
+  app.get("/api/admin/user/:id", isAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Geçersiz kullanıcı ID" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Kullanıcı bulunamadı" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: "Kullanıcı detayları getirilirken bir hata oluştu" });
+    }
+  });
+  
+  app.put("/api/admin/user/:id", isAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Geçersiz kullanıcı ID" });
+      }
+      
+      const updatedUser = await storage.updateUser(userId, req.body);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Kullanıcı bulunamadı" });
+      }
+      
+      res.json(updatedUser);
+    } catch (error) {
+      res.status(500).json({ message: "Kullanıcı güncellenirken bir hata oluştu" });
+    }
+  });
+  
+  app.delete("/api/admin/user/:id", isAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Geçersiz kullanıcı ID" });
+      }
+      
+      // Admin kendisini silemez
+      if (userId === req.user!.id) {
+        return res.status(400).json({ message: "Kendi hesabınızı silemezsiniz" });
+      }
+      
+      const success = await storage.deleteUser(userId);
+      if (!success) {
+        return res.status(404).json({ message: "Kullanıcı bulunamadı veya silinemedi" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Kullanıcı silinirken bir hata oluştu" });
+    }
+  });
+  
+  // Admin statistics API
+  app.get("/api/admin/stats", isAdmin, async (req, res) => {
+    try {
+      const userCount = await storage.getUserCount();
+      const watchHistoryCount = await storage.getWatchHistoryCount();
+      const commentsCount = await storage.getCommentsCount();
+      const pollsCount = await storage.getPollsCount();
+      
+      res.json({
+        userCount,
+        watchHistoryCount,
+        commentsCount,
+        pollsCount,
+        lastUpdated: new Date()
+      });
+    } catch (error) {
+      res.status(500).json({ message: "İstatistikler getirilirken bir hata oluştu" });
+    }
+  });
 
   const httpServer = createServer(app);
 

@@ -16,7 +16,7 @@ import type {
 import { randomBytes } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
-import { eq, and, desc, asc, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, isNull, sql } from "drizzle-orm";
 import { db } from "./db";
 
 const MemoryStore = createMemoryStore(session);
@@ -28,6 +28,14 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
+  getUserCount(): Promise<number>;
+  deleteUser(id: number): Promise<boolean>;
+  
+  // Admin statistics methods
+  getWatchHistoryCount(): Promise<number>;
+  getCommentsCount(): Promise<number>;
+  getPollsCount(): Promise<number>;
   
   // Watch history methods
   getWatchHistory(userId: number): Promise<WatchHistory[]>;
@@ -92,6 +100,36 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
+  
+  // Admin methods
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
+  }
+  
+  async getUserCount(): Promise<number> {
+    const result = await db.select({ count: sql`count(*)` }).from(users);
+    return Number(result[0].count);
+  }
+  
+  async deleteUser(id: number): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id)).returning();
+    return result.length > 0;
+  }
+  
+  async getWatchHistoryCount(): Promise<number> {
+    const result = await db.select({ count: sql`count(*)` }).from(watchHistory);
+    return Number(result[0].count);
+  }
+  
+  async getCommentsCount(): Promise<number> {
+    const result = await db.select({ count: sql`count(*)` }).from(episodeComments);
+    return Number(result[0].count);
+  }
+  
+  async getPollsCount(): Promise<number> {
+    const result = await db.select({ count: sql`count(*)` }).from(episodePolls);
+    return Number(result[0].count);
+  }
 
   constructor() {
     if (!process.env.DATABASE_URL) {
@@ -586,6 +624,11 @@ export class MemStorage implements IStorage {
   private watchParties: Map<number, WatchParty>;
   private partyParticipants: Map<number, Set<number>>;
   private messages: Map<number, any[]>;
+  private episodeComments: Map<number, EpisodeComment>;
+  private episodeReactions: Map<number, EpisodeReaction>;
+  private episodePolls: Map<number, EpisodePoll>;
+  private pollOptions: Map<number, PollOption>;
+  private pollVotes: Map<number, PollVote>;
   currentId: { [key: string]: number };
   sessionStore: session.Store;
 
@@ -647,6 +690,7 @@ export class MemStorage implements IStorage {
       ...insertUser, 
       id,
       profilePicture: insertUser.profilePicture || null,
+      role: insertUser.role || "user",
       createdAt: new Date()
     };
     this.users.set(id, user);
@@ -865,12 +909,30 @@ export class MemStorage implements IStorage {
     this.recommendations.set(userId, animeIds);
   }
 
-  // Etkileşimli özellikler için Map'ler
-  private episodeComments: Map<number, EpisodeComment> = new Map();
-  private episodeReactions: Map<number, EpisodeReaction> = new Map();
-  private episodePolls: Map<number, EpisodePoll> = new Map();
-  private pollOptions: Map<number, PollOption> = new Map();
-  private pollVotes: Map<number, PollVote> = new Map();
+  // Admin methods
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+  
+  async getUserCount(): Promise<number> {
+    return this.users.size;
+  }
+  
+  async getWatchHistoryCount(): Promise<number> {
+    return this.watchHistories.size;
+  }
+  
+  async getCommentsCount(): Promise<number> {
+    return this.episodeComments.size;
+  }
+  
+  async getPollsCount(): Promise<number> {
+    return this.episodePolls.size;
+  }
+  
+  async deleteUser(id: number): Promise<boolean> {
+    return this.users.delete(id);
+  }
   
   // Episode comments methods
   async getEpisodeComments(animeId: number, episodeId: number): Promise<EpisodeComment[]> {

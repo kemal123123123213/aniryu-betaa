@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   email: text("email").notNull().unique(),
   profilePicture: text("profile_picture"),
+  role: text("role").default("user").notNull(), // 'user' veya 'admin'
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -133,6 +134,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   email: true,
   profilePicture: true,
+  role: true,
 });
 
 export const insertWatchHistorySchema = createInsertSchema(watchHistory).pick({

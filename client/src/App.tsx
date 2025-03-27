@@ -12,6 +12,7 @@ import AnimeWatchPage from "@/pages/anime-watch-page";
 import ProfilePage from "@/pages/profile-page";
 import SearchPage from "@/pages/search-page";
 import CategoryPage from "@/pages/category-page";
+import AdminPage from "@/pages/admin-page";
 
 function Router() {
   return (
@@ -33,6 +34,9 @@ function Router() {
       </Route>
       <Route path="/kategori/:genre">
         {() => <ProtectedRoute component={CategoryPage} />}
+      </Route>
+      <Route path="/admin">
+        {() => <ProtectedRoute component={AdminPage} />}
       </Route>
       <Route path="/auth">
         <AuthPage />
