@@ -25,7 +25,8 @@ import {
   Text,
   RotateCw,
   Maximize,
-  Camera
+  Camera,
+  Clock
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -566,51 +567,52 @@ export function VideoPlayer({
           </motion.div>
         )}
       </AnimatePresence>
-      
-      {/* Skip Intro Button - Appears when appropriate */}
+
+      {/* Skip intro button - appears at the intro of the video */}
       <AnimatePresence>
         {showSkipIntroButton && (
           <motion.button
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="absolute bottom-32 right-4 bg-primary text-white px-4 py-2 rounded-md z-30"
+            transition={{ duration: 0.3 }}
+            className="absolute bottom-24 right-4 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-md flex items-center space-x-2 z-30"
             onClick={() => {
-              // Teorik olarak, intro süresi 90 saniye
-              const skipToTime = Math.min(90, duration) / duration;
-              playerRef.current?.seekTo(skipToTime);
+              // Skip to after intro (approximately 1.5 minutes)
+              playerRef.current?.seekTo(1.5 / duration);
               setShowSkipIntroButton(false);
             }}
           >
-            İntroyu Geç
+            <span>İntroyu Geç</span>
+            <SkipForward className="h-4 w-4" />
           </motion.button>
         )}
       </AnimatePresence>
-      
-      {/* Next Episode Overlay */}
+
+      {/* Next episode overlay - appears near the end of the video */}
       <AnimatePresence>
         {showNextEpisodeOverlay && nextEpisodeAvailable && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-40"
+            className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-30"
           >
-            <div className="text-center">
-              <h3 className="text-2xl font-bold mb-4">Sonraki Bölüm</h3>
-              <p className="mb-6">5 saniye içinde otomatik olarak başlayacak.</p>
-              <div className="flex space-x-4 justify-center">
+            <div className="bg-dark p-6 rounded-lg max-w-md text-center">
+              <h3 className="text-xl font-bold mb-3">Sonraki Bölüm</h3>
+              <p className="mb-4 text-gray-300">Sonraki bölüme geçiş için: 5 saniye</p>
+              <div className="flex justify-center space-x-4">
+                <Button
+                  onClick={onNext}
+                  className="bg-primary hover:bg-primary-dark"
+                >
+                  Şimdi İzle
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => setShowNextEpisodeOverlay(false)}
                 >
                   İptal
-                </Button>
-                <Button
-                  variant="default"
-                  onClick={onNext}
-                >
-                  Şimdi İzle
                 </Button>
               </div>
             </div>
@@ -618,136 +620,283 @@ export function VideoPlayer({
         )}
       </AnimatePresence>
 
-      {/* Video controls */}
-      <div 
-        className={`video-controls absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4 transition-opacity duration-300 z-20 ${showControls ? 'opacity-100' : 'opacity-0'}`}
-      >
-        {/* Progress bar */}
-        <div 
-          className="relative mb-3 group cursor-pointer"
-          onMouseMove={handleProgressHover}
-          onMouseLeave={handleProgressLeave}
-        >
-          <div className="progress-bar w-full bg-gray-600 rounded-full">
-            <div 
-              className="bg-primary h-full rounded-full transition-all relative" 
-              style={{ width: `${played * 100}%` }}
-            ></div>
-          </div>
-          
-          {/* Hover time indicator */}
-          {hoverPosition !== null && (
-            <div 
-              className="absolute -top-8 px-2 py-1 bg-dark-card rounded text-xs transform -translate-x-1/2 z-30"
-              style={{ left: `${hoverPosition * 100}%` }}
-            >
-              {hoverTime}
-            </div>
-          )}
-          
-          {/* Video thumb */}
-          <div 
-            className="absolute w-4 h-4 bg-primary rounded-full top-1/2 transform -translate-y-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ left: `${played * 100}%` }}
-            onMouseDown={() => setSeeking(true)}
-          ></div>
+      {/* Screenshot button */}
+      <AnimatePresence>
+        {showControls && (
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-4 right-4 bg-black bg-opacity-50 hover:bg-opacity-70 p-2 rounded-full text-white z-20"
+            onClick={() => setCaptureScreenshot(true)}
+          >
+            <Camera className="h-5 w-5" />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
-          {/* Seekable progress bar */}
-          <Slider
-            value={[played]}
-            min={0}
-            max={1}
-            step={0.001}
-            onValueChange={handleSeekChange}
-            onValueCommit={() => handleSeekMouseUp()}
-            className="absolute inset-0 opacity-0 cursor-pointer"
-          />
+      {/* Controls overlay */}
+      <div 
+        className={`absolute inset-0 transition-opacity duration-300 flex flex-col justify-end z-20 
+          ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      >
+        {/* Video title and episode */}
+        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent">
+          <h3 className="text-white font-medium truncate">{title}</h3>
+          {episodeTitle && (
+            <p className="text-gray-200 text-sm truncate">{episodeTitle}</p>
+          )}
         </div>
-        
-        {/* Controls row */}
-        <div className="flex items-center justify-between">
-          {/* Left controls */}
-          <div className="flex items-center space-x-3">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handlePlayPause}
-              className="text-white hover:text-primary transition-colors"
-            >
-              {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            </Button>
-            
-            {nextEpisodeAvailable && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={onNext}
-                className="text-white hover:text-primary transition-colors"
-              >
-                <SkipForward className="h-5 w-5" />
-              </Button>
-            )}
-            
-            <div className="relative">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={toggleMute}
-                className="text-white hover:text-primary transition-colors"
-                onMouseEnter={() => setShowVolumeSlider(true)}
-                onMouseLeave={() => setShowVolumeSlider(false)}
-              >
-                {muted || volume === 0 ? (
-                  <VolumeX className="h-5 w-5" />
-                ) : volume < 0.5 ? (
-                  <Volume1 className="h-5 w-5" />
-                ) : (
-                  <Volume2 className="h-5 w-5" />
-                )}
-              </Button>
-              
-              {showVolumeSlider && (
-                <div 
-                  className="absolute bottom-12 left-0 w-32 h-8 bg-dark-card rounded-lg p-2 flex items-center"
-                  onMouseEnter={() => setShowVolumeSlider(true)}
-                  onMouseLeave={() => setShowVolumeSlider(false)}
-                >
-                  <Slider
-                    value={[muted ? 0 : volume]}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onValueChange={handleVolumeChange}
-                    className="w-full"
-                  />
-                </div>
-              )}
-            </div>
-            
-            <div className="text-sm text-white">
-              <span>{formatTime(played * duration)}</span>
-              <span className="text-gray-400"> / </span>
-              <span className="text-gray-400">{formatTime(duration)}</span>
-            </div>
+
+        {/* Progress bar hover preview */}
+        {hoverPosition !== null && (
+          <div 
+            className="absolute bottom-20 bg-black bg-opacity-80 py-1 px-2 rounded text-xs text-white"
+            style={{ left: `calc(${hoverPosition * 100}% - 20px)` }}
+          >
+            {hoverTime}
           </div>
-          
-          {/* Right controls */}
-          <div className="flex items-center space-x-3">
-            <div className="hidden md:flex space-x-3">
+        )}
+
+        {/* Controls Container */}
+        <div className="bg-gradient-to-t from-black/80 to-transparent pt-10 pb-2">
+          {/* Progress bar */}
+          <div className="px-4 py-2"
+            onMouseMove={handleProgressHover}
+            onMouseLeave={handleProgressLeave}
+          >
+            <Slider
+              value={[played]}
+              min={0}
+              max={1}
+              step={0.001}
+              onValueChange={handleSeekChange}
+              onValueCommit={handleSeekMouseUp}
+              className="cursor-pointer"
+            />
+          </div>
+
+          {/* Control buttons */}
+          <div className="px-4 flex items-center justify-between">
+            {/* Left controls */}
+            <div className="flex items-center space-x-2">
+              <Button variant="ghost" size="icon" onClick={handlePlayPause} className="text-white hover:text-primary transition-colors">
+                {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+              </Button>
+              
+              <Button variant="ghost" size="icon" onClick={handleSkipBackward} className="text-white hover:text-primary transition-colors">
+                <Rewind className="h-5 w-5" />
+              </Button>
+              
+              <Button variant="ghost" size="icon" onClick={handleSkipForward} className="text-white hover:text-primary transition-colors">
+                <Forward className="h-5 w-5" />
+              </Button>
+              
+              <div className="relative" onMouseEnter={() => setShowVolumeSlider(true)} onMouseLeave={() => setShowVolumeSlider(false)}>
+                <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white hover:text-primary transition-colors">
+                  {muted || volume === 0 ? <VolumeX className="h-5 w-5" /> : 
+                   volume < 0.5 ? <Volume1 className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                </Button>
+                
+                {showVolumeSlider && (
+                  <div className="absolute left-0 -top-20 bg-black/80 backdrop-blur-sm p-3 rounded-md shadow-lg">
+                    <Slider
+                      className="h-20 w-6"
+                      defaultValue={[muted ? 0 : volume]}
+                      value={[muted ? 0 : volume]}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      orientation="vertical"
+                      onValueChange={handleVolumeChange}
+                    />
+                  </div>
+                )}
+              </div>
+              
+              <div className="text-white text-sm ml-2">
+                <span>{formatTime(played * duration)}</span>
+                <span className="mx-1">/</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+            </div>
+            
+            {/* Right controls */}
+            <div className="flex items-center space-x-1">
+              {/* Subtitle selector */}
+              {subtitles.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-white hover:text-primary transition-colors"
+                    >
+                      <Subtitles className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-dark-card text-white">
+                    <DropdownMenuLabel>Altyazı Seçimi</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioGroup value={currentSubtitle} onValueChange={setCurrentSubtitle}>
+                      <DropdownMenuRadioItem value="off">Kapalı</DropdownMenuRadioItem>
+                      {subtitles.map((subtitle) => (
+                        <DropdownMenuRadioItem key={subtitle.lang} value={subtitle.lang}>
+                          {subtitle.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            
+              {/* Animasyonlu Ayarlar Menüsü */}
+              <div className="relative">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-white hover:text-primary transition-colors"
+                        onClick={() => setShowSettings(!showSettings)}
+                      >
+                        <motion.div
+                          animate={{ rotate: showSettings ? 90 : 0 }}
+                          transition={{ duration: 0.3, type: "spring", stiffness: 200 }}
+                        >
+                          <Settings className="h-5 w-5" />
+                        </motion.div>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Ayarlar</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                
+                <AnimatePresence>
+                  {showSettings && (
+                    <>
+                      {/* Click outside to close */}
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowSettings(false)}
+                      />
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                        transition={{ duration: 0.2, type: "spring", stiffness: 300 }}
+                        className="absolute right-0 bottom-14 w-64 bg-black bg-opacity-90 backdrop-blur-sm rounded-md overflow-hidden z-50 shadow-xl"
+                        style={{ transformOrigin: "bottom right" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="p-3 border-b border-gray-700">
+                          <h3 className="text-sm font-medium text-white">Oynatıcı Ayarları</h3>
+                        </div>
+                        
+                        {/* Tema Seçimi */}
+                        <div className="p-3 border-b border-gray-700">
+                          <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center">
+                            <Palette className="h-3.5 w-3.5 mr-1.5" />
+                            Oynatıcı Teması
+                          </h4>
+                          <div className="grid grid-cols-5 gap-2">
+                            {[
+                              { value: 'dark', label: 'Karanlık', color: 'bg-gray-900' },
+                              { value: 'light', label: 'Aydınlık', color: 'bg-gray-100' },
+                              { value: 'anime', label: 'Anime', color: 'bg-purple-800' },
+                              { value: 'minimal', label: 'Minimal', color: 'bg-black' },
+                              { value: 'classic', label: 'Klasik', color: 'bg-blue-900' }
+                            ].map(theme => (
+                              <motion.button
+                                key={theme.value}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setPlayerTheme(theme.value as VideoPlayerTheme)}
+                                className={`flex flex-col items-center p-1 rounded ${playerTheme === theme.value ? 'ring-2 ring-primary' : ''}`}
+                              >
+                                <div className={`${theme.color} w-8 h-8 rounded-sm mb-1`}></div>
+                                <span className="text-[10px] text-white">{theme.label}</span>
+                              </motion.button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Oynatma Hızı */}
+                        <div className="p-3">
+                          <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center">
+                            <Clock className="h-3.5 w-3.5 mr-1.5" />
+                            Oynatma Hızı
+                          </h4>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
+                              <motion.button
+                                key={rate}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setPlaybackRate(rate)}
+                                className={`px-2 py-1 rounded text-xs ${playbackRate === rate ? 'bg-primary text-white' : 'bg-gray-800 text-gray-300'}`}
+                              >
+                                {rate === 1 ? 'Normal' : `${rate}x`}
+                              </motion.button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Diğer Ayarlar */}
+                        <div className="p-3 border-t border-gray-700">
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={togglePictureInPicture}
+                            className="flex items-center justify-between w-full p-2 rounded hover:bg-gray-800 mb-2"
+                          >
+                            <span className="flex items-center text-xs text-white">
+                              <PictureInPicture className="h-3.5 w-3.5 mr-1.5" />
+                              Resim İçinde Resim
+                            </span>
+                            <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+                          </motion.button>
+                          
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={toggleFullscreen}
+                            className="flex items-center justify-between w-full p-2 rounded hover:bg-gray-800"
+                          >
+                            <span className="flex items-center text-xs text-white">
+                              <Fullscreen className="h-3.5 w-3.5 mr-1.5" />
+                              Tam Ekran
+                            </span>
+                            <span className="text-[10px] text-gray-400">F</span>
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+              
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      onClick={handleSkipBackward}
+                      onClick={togglePictureInPicture}
                       className="text-white hover:text-primary transition-colors"
                     >
-                      <Rewind className="h-5 w-5" />
+                      <PictureInPicture className="h-5 w-5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top">
-                    <p>10 saniye geri (J tuşu)</p>
+                    <p>Resim İçinde Resim</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -758,281 +907,18 @@ export function VideoPlayer({
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      onClick={handleSkipForward}
+                      onClick={toggleFullscreen}
                       className="text-white hover:text-primary transition-colors"
                     >
-                      <Forward className="h-5 w-5" />
+                      <Fullscreen className="h-5 w-5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top">
-                    <p>10 saniye ileri (L tuşu)</p>
+                    <p>Tam Ekran (F tuşu)</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
-            
-            {/* Ekran görüntüsü alma butonu */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setCaptureScreenshot(true)}
-                    className="text-white hover:text-primary transition-colors"
-                  >
-                    <Camera className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>Ekran görüntüsü al</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            
-            {/* Altyazı menüsü */}
-            {subtitles.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="text-white hover:text-primary transition-colors"
-                  >
-                    <Subtitles className="h-5 w-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-dark-card text-white">
-                  <DropdownMenuLabel>Altyazılar</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => setCurrentSubtitle('off')}
-                    className={currentSubtitle === 'off' ? 'bg-primary/20' : ''}
-                  >
-                    Kapalı
-                  </DropdownMenuItem>
-                  {subtitles.map((subtitle) => (
-                    <DropdownMenuItem
-                      key={subtitle.lang}
-                      onClick={() => setCurrentSubtitle(subtitle.lang)}
-                      className={currentSubtitle === subtitle.lang ? 'bg-primary/20' : ''}
-                    >
-                      {subtitle.label}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <Text className="mr-2 h-4 w-4" />
-                      <span>Altyazı Stili</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuPortal>
-                      <DropdownMenuSubContent className="bg-dark-card text-white">
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <span>Yazı Boyutu</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent className="bg-dark-card text-white">
-                              {['12px', '14px', '16px', '18px', '20px', '22px'].map(size => (
-                                <DropdownMenuItem 
-                                  key={size}
-                                  onClick={() => setSubtitleStyle({...subtitleStyle, fontSize: size})}
-                                  className={subtitleStyle.fontSize === size ? 'bg-primary/20' : ''}
-                                >
-                                  {size}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
-                        
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <span>Yazı Rengi</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent className="bg-dark-card text-white">
-                              {[
-                                { name: 'Beyaz', value: 'white' },
-                                { name: 'Sarı', value: 'yellow' },
-                                { name: 'Yeşil', value: 'lightgreen' },
-                                { name: 'Mavi', value: 'lightblue' },
-                                { name: 'Pembe', value: 'pink' }
-                              ].map(color => (
-                                <DropdownMenuItem 
-                                  key={color.value}
-                                  onClick={() => setSubtitleStyle({...subtitleStyle, color: color.value})}
-                                  className={subtitleStyle.color === color.value ? 'bg-primary/20' : ''}
-                                >
-                                  <div className="flex items-center">
-                                    <div 
-                                      className="w-4 h-4 rounded-full mr-2" 
-                                      style={{ backgroundColor: color.value }}
-                                    ></div>
-                                    {color.name}
-                                  </div>
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
-                        
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <span>Arkaplan</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent className="bg-dark-card text-white">
-                              {[
-                                { name: 'Siyah', value: 'rgba(0, 0, 0, 0.7)' },
-                                { name: 'Koyu Gri', value: 'rgba(50, 50, 50, 0.7)' },
-                                { name: 'Şeffaf', value: 'transparent' },
-                                { name: 'Mavi', value: 'rgba(0, 0, 50, 0.7)' }
-                              ].map(bg => (
-                                <DropdownMenuItem 
-                                  key={bg.value}
-                                  onClick={() => setSubtitleStyle({...subtitleStyle, backgroundColor: bg.value})}
-                                  className={subtitleStyle.backgroundColor === bg.value ? 'bg-primary/20' : ''}
-                                >
-                                  {bg.name}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
-                        
-                        <DropdownMenuItem 
-                          onClick={() => setSubtitleStyle({...subtitleStyle, textShadow: !subtitleStyle.textShadow})}
-                        >
-                          <div className="flex items-center">
-                            <input 
-                              type="checkbox" 
-                              checked={subtitleStyle.textShadow}
-                              className="mr-2"
-                              readOnly
-                            />
-                            Gölge Efekti
-                          </div>
-                        </DropdownMenuItem>
-                        
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <span>Pozisyon</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent className="bg-dark-card text-white">
-                              <DropdownMenuItem 
-                                onClick={() => setSubtitleStyle({...subtitleStyle, position: 'bottom'})}
-                                className={subtitleStyle.position === 'bottom' ? 'bg-primary/20' : ''}
-                              >
-                                Alt
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => setSubtitleStyle({...subtitleStyle, position: 'middle'})}
-                                className={subtitleStyle.position === 'middle' ? 'bg-primary/20' : ''}
-                              >
-                                Orta
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => setSubtitleStyle({...subtitleStyle, position: 'top'})}
-                                className={subtitleStyle.position === 'top' ? 'bg-primary/20' : ''}
-                              >
-                                Üst
-                              </DropdownMenuItem>
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuPortal>
-                  </DropdownMenuSub>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            
-            {/* Ayarlar Menüsü */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-white hover:text-primary transition-colors"
-                >
-                  <Settings className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-dark-card text-white">
-                <DropdownMenuLabel>Oynatıcı Ayarları</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Palette className="mr-2 h-4 w-4" />
-                    <span>Oynatıcı Teması</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuSubContent className="bg-dark-card text-white">
-                      <DropdownMenuRadioGroup value={playerTheme} onValueChange={(value) => setPlayerTheme(value as VideoPlayerTheme)}>
-                        <DropdownMenuRadioItem value="dark">Karanlık</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="light">Aydınlık</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="anime">Anime</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="minimal">Minimal</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="classic">Klasik</DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuSub>
-                
-                <DropdownMenuSeparator />
-                
-                <DropdownMenuLabel>Oynatma Hızı</DropdownMenuLabel>
-                {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
-                  <DropdownMenuItem
-                    key={rate}
-                    onClick={() => setPlaybackRate(rate)}
-                    className={playbackRate === rate ? 'bg-primary/20' : ''}
-                  >
-                    {rate === 1 ? 'Normal' : `${rate}x`}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={togglePictureInPicture}
-                    className="text-white hover:text-primary transition-colors"
-                  >
-                    <PictureInPicture className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>Resim İçinde Resim</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={toggleFullscreen}
-                    className="text-white hover:text-primary transition-colors"
-                  >
-                    <Fullscreen className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>Tam Ekran (F tuşu)</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </div>
         </div>
       </div>
