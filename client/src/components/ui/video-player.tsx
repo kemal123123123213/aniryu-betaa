@@ -26,7 +26,10 @@ import {
   RotateCw,
   Maximize,
   Camera,
-  Clock
+  Clock,
+  Users,
+  Share2,
+  MessageCircle
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -52,8 +55,9 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
 import { useProgressSync } from '@/hooks/use-progress-sync';
-import { formatTime } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { useWatchParty } from '@/hooks/use-watch-party';
+import { useToast } from '@/hooks/use-toast';
+import { formatTime, cn } from '@/lib/utils';
 
 // Video oynatıcı bileşeni için gelişmiş props
 interface VideoPlayerProps {
@@ -71,6 +75,8 @@ interface VideoPlayerProps {
   onNext?: () => void;
   nextEpisodeAvailable?: boolean;
   thumbnailUrl?: string; // Video önizleme resmi URL'si
+  watchPartyMode?: boolean; // Birlikte izleme modu aktif mi
+  watchPartyCode?: string; // Mevcut izleme partisi kodu
 }
 
 // Video oynatıcı tema türleri
@@ -106,7 +112,9 @@ export function VideoPlayer({
   subtitles = [],
   onNext,
   nextEpisodeAvailable = false,
-  thumbnailUrl
+  thumbnailUrl,
+  watchPartyMode = false,
+  watchPartyCode
 }: VideoPlayerProps) {
   // Oynatıcı temel durumları
   const [playing, setPlaying] = useState(false);
@@ -147,6 +155,42 @@ export function VideoPlayer({
 
   const { user } = useAuth();
   const { getProgress, isLoading: syncLoading, sync } = useProgressSync();
+  const { toast } = useToast();
+  
+  // Watch Party entegrasyonu
+  const [showChatPanel, setShowChatPanel] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
+  const { 
+    activeParty,
+    participants,
+    chatMessages,
+    isConnected,
+    syncVideoState,
+    sendChatMessage,
+    createParty,
+    joinParty,
+    leaveParty
+  } = useWatchParty({
+    onSyncUpdate: (update) => {
+      // Party'deki diğer kullanıcılardan gelen video durumu güncellemelerini işle
+      if (!seeking) {
+        const newPlayedValue = update.currentTime / duration;
+        setPlayed(newPlayedValue);
+        playerRef.current?.seekTo(update.currentTime / duration, 'fraction');
+        setPlaying(update.isPlaying);
+      }
+    },
+    onChatMessage: (message) => {
+      // Eğer chat paneli açık değilse ve yeni mesaj gelirse hafif bir bildirim göster
+      if (!showChatPanel) {
+        toast({
+          title: `${message.username}`,
+          description: message.content,
+          duration: 3000,
+        });
+      }
+    }
+  });
   
   // Get watch history to resume from last position using progress sync
   const { data: watchHistory, isLoading: historyLoading } = useQuery({
@@ -295,7 +339,14 @@ export function VideoPlayer({
 
   // Player event handlers
   const handlePlayPause = () => {
-    setPlaying(!playing);
+    const newPlayingState = !playing;
+    setPlaying(newPlayingState);
+    
+    // Watch party modunda oynatma durumunu senkronize et
+    if (watchPartyMode && activeParty) {
+      const currentTime = playerRef.current?.getCurrentTime() || 0;
+      syncVideoState(currentTime, newPlayingState);
+    }
   };
 
   const handleProgress = (state: { played: number; loaded: number; playedSeconds: number }) => {
@@ -311,7 +362,13 @@ export function VideoPlayer({
 
   const handleSeekMouseUp = () => {
     setSeeking(false);
-    playerRef.current?.seekTo(played);
+    const newPosition = played;
+    playerRef.current?.seekTo(newPosition);
+    
+    // Watch party modunda ilerlemeyi senkronize et
+    if (watchPartyMode && activeParty) {
+      syncVideoState(newPosition * duration, playing);
+    }
   };
 
   const handleVolumeChange = (value: number[]) => {
@@ -336,12 +393,22 @@ export function VideoPlayer({
     const currentTime = playerRef.current?.getCurrentTime() || 0;
     const newTime = Math.min(currentTime + 10, duration);
     playerRef.current?.seekTo(newTime / duration);
+    
+    // Watch party modunda ilerlemeyi senkronize et
+    if (watchPartyMode && activeParty) {
+      syncVideoState(newTime, playing);
+    }
   };
 
   const handleSkipBackward = () => {
     const currentTime = playerRef.current?.getCurrentTime() || 0;
     const newTime = Math.max(currentTime - 10, 0);
     playerRef.current?.seekTo(newTime / duration);
+    
+    // Watch party modunda ilerlemeyi senkronize et
+    if (watchPartyMode && activeParty) {
+      syncVideoState(newTime, playing);
+    }
   };
 
   // Keyboard shortcuts
@@ -351,7 +418,14 @@ export function VideoPlayer({
         case ' ':
         case 'k':
           e.preventDefault();
-          setPlaying(prev => !prev);
+          const newPlayingState = !playing;
+          setPlaying(newPlayingState);
+          
+          // Watch party modunda oynatma durumunu senkronize et
+          if (watchPartyMode && activeParty) {
+            const currentTime = playerRef.current?.getCurrentTime() || 0;
+            syncVideoState(currentTime, newPlayingState);
+          }
           break;
         case 'f':
           e.preventDefault();
@@ -468,6 +542,22 @@ export function VideoPlayer({
     }
   }, [captureScreenshot]);
   
+  // Watch Party'de periyodik olarak video durumunu senkronize et
+  useEffect(() => {
+    let syncInterval: NodeJS.Timeout;
+    
+    if (watchPartyMode && activeParty && playing && !seeking) {
+      syncInterval = setInterval(() => {
+        const currentTime = playerRef.current?.getCurrentTime() || 0;
+        syncVideoState(currentTime, playing);
+      }, 5000); // 5 saniyede bir durumu güncelle
+    }
+    
+    return () => {
+      if (syncInterval) clearInterval(syncInterval);
+    };
+  }, [watchPartyMode, activeParty, playing, seeking, syncVideoState]);
+
   // Sonraki bölüm overlay'ı için süre takibi
   useEffect(() => {
     let timeout: NodeJS.Timeout;
@@ -595,8 +685,14 @@ export function VideoPlayer({
             className="absolute bottom-24 right-4 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-md flex items-center space-x-2 z-30"
             onClick={() => {
               // Skip to after intro (approximately 1.5 minutes)
-              playerRef.current?.seekTo(1.5 / duration);
+              const newPosition = 1.5 / duration;
+              playerRef.current?.seekTo(newPosition);
               setShowSkipIntroButton(false);
+              
+              // Watch party modunda ilerlemeyi senkronize et
+              if (watchPartyMode && activeParty) {
+                syncVideoState(1.5, playing);
+              }
             }}
           >
             <span>İntroyu Geç</span>
@@ -934,10 +1030,226 @@ export function VideoPlayer({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              
+              {/* Watch Party butonu */}
+              {user && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className={cn(
+                          "text-white hover:text-primary transition-colors relative",
+                          activeParty ? "text-primary" : ""
+                        )}
+                        onClick={() => setShowChatPanel(!showChatPanel)}
+                      >
+                        <Users className="h-5 w-5" />
+                        {activeParty && participants.length > 1 && (
+                          <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                            {participants.length}
+                          </span>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Birlikte İzle</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Watch Party Sohbet Paneli - Görünürlüğünü toggle butonu ile kontrol et */}
+      <AnimatePresence>
+        {showChatPanel && (
+          <motion.div
+            initial={{ x: '100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0 }}
+            transition={{ type: 'spring', damping: 20 }}
+            className="absolute top-0 right-0 bottom-0 w-80 bg-black/90 backdrop-blur-sm z-40 flex flex-col"
+          >
+            <div className="flex items-center justify-between p-3 border-b border-gray-700">
+              <div>
+                <h3 className="text-white font-medium">Birlikte İzle</h3>
+                <p className="text-gray-400 text-xs">
+                  {activeParty ? 
+                    `Oda Kodu: ${activeParty.roomCode} | ${participants.length} Katılımcı` : 
+                    'Yeni bir parti başlat veya bir odaya katıl'
+                  }
+                </p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setShowChatPanel(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <ChevronRight />
+              </Button>
+            </div>
+            
+            {!activeParty ? (
+              <div className="p-4 flex flex-col gap-3">
+                <Button 
+                  className="w-full" 
+                  onClick={() => {
+                    createParty({
+                      animeId,
+                      episodeId,
+                      isPublic: true
+                    });
+                    toast({
+                      title: "Watch Party başlatıldı!",
+                      description: "Arkadaşlarını davet edebilirsin.",
+                    });
+                  }}
+                >
+                  Yeni Parti Başlat
+                </Button>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="Oda Kodu Gir"
+                    className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700"
+                  />
+                  <Button 
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => {
+                      // Oda kodunu inputtan al
+                      const input = document.querySelector('input[placeholder="Oda Kodu Gir"]') as HTMLInputElement;
+                      const code = input?.value;
+                      
+                      if (!code) {
+                        toast({
+                          title: "Hata",
+                          description: "Lütfen bir oda kodu girin.",
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+                      
+                      joinParty(code);
+                    }}
+                  >
+                    Katıl
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Katılımcılar */}
+                <div className="p-2 border-b border-gray-700">
+                  <h4 className="text-gray-400 text-xs mb-2 px-2">Katılımcılar</h4>
+                  <div className="flex flex-wrap gap-2 px-2">
+                    {participants.map(participant => (
+                      <div key={participant.userId} className="flex items-center space-x-1 bg-gray-800 rounded-full px-2 py-1">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        <span className="text-white text-xs">{participant.username}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Sohbet alanı */}
+                <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+                  {chatMessages.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <p className="text-gray-500 text-sm">Sohbet mesajları burada görünecek</p>
+                    </div>
+                  ) : (
+                    chatMessages.map((message, index) => (
+                      <div 
+                        key={index} 
+                        className={`p-2 rounded max-w-[80%] ${
+                          message.userId === user?.id ? 
+                            'bg-primary/80 text-white ml-auto' : 
+                            'bg-gray-800 text-white'
+                        }`}
+                      >
+                        <p className="text-xs font-medium mb-1">{message.username}</p>
+                        <p className="text-sm">{message.content}</p>
+                        <span className="text-[10px] opacity-70 block text-right">{
+                          new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                        }</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                
+                {/* Mesaj gönderme alanı */}
+                <div className="p-3 border-t border-gray-700">
+                  <div className="flex">
+                    <input
+                      type="text"
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      placeholder="Mesajınızı yazın..."
+                      className="flex-1 p-2 rounded-l bg-gray-800 text-white border border-gray-700"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && chatMessage.trim()) {
+                          sendChatMessage(chatMessage);
+                          setChatMessage('');
+                        }
+                      }}
+                    />
+                    <Button 
+                      className="rounded-l-none"
+                      onClick={() => {
+                        if (chatMessage.trim()) {
+                          sendChatMessage(chatMessage);
+                          setChatMessage('');
+                        }
+                      }}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="mt-2 flex justify-between">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => {
+                        // Partideki video durumunu paylaş
+                        const currentTime = playerRef.current?.getCurrentTime() || 0;
+                        syncVideoState(currentTime, playing);
+                        
+                        toast({
+                          title: "Video durumu senkronize edildi",
+                          description: "Tüm katılımcılar aynı noktada izliyor."
+                        });
+                      }}
+                    >
+                      Videoyu Senkronize Et
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => {
+                        leaveParty();
+                        setShowChatPanel(false);
+                        
+                        toast({
+                          title: "Watch Party'den ayrıldın",
+                        });
+                      }}
+                    >
+                      Ayrıl
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -788,11 +788,11 @@ function FavoriteAnimeCard({ animeId }: { animeId: number }): React.JSX.Element 
     );
   }
   
-  if (!anime) return null;
+  if (!anime) return <></>;
   
   // Format score for display with stars
   const formatScore = () => {
-    if (!anime.averageScore) return null;
+    if (!anime.averageScore) return <></>;
     
     const score = anime.averageScore / 10;
     return (
