@@ -51,6 +51,7 @@ import {
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
+import { useProgressSync } from '@/hooks/use-progress-sync';
 import { formatTime } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -145,8 +146,9 @@ export function VideoPlayer({
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { user } = useAuth();
+  const { getProgress, isLoading: syncLoading, sync } = useProgressSync();
   
-  // Get watch history to resume from last position
+  // Get watch history to resume from last position using progress sync
   const { data: watchHistory, isLoading: historyLoading } = useQuery({
     queryKey: ['/api/watch-history', animeId, episodeId],
     queryFn: async () => {
@@ -169,12 +171,26 @@ export function VideoPlayer({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/watch-history'] });
+      // After updating watch history, sync progress across devices
+      sync();
     },
   });
 
-  // Set initial played value from watch history
+  // Try to get progress from sync first, fall back to regular watch history
   useEffect(() => {
-    if (watchHistory && !historyLoading) {
+    // First try to get progress from sync
+    const syncedProgress = getProgress(animeId, episodeId);
+    
+    if (syncedProgress && !syncLoading) {
+      // If synced progress exists and it's not too close to the end
+      if (syncedProgress.progress < duration - 10) {
+        const initialPlayed = syncedProgress.progress / duration;
+        setPlayed(initialPlayed);
+        playerRef.current?.seekTo(initialPlayed);
+      }
+    } 
+    // Fall back to regular watch history if no synced progress
+    else if (watchHistory && !historyLoading) {
       // If the progress is less than 10 seconds from the end, start from beginning
       if (watchHistory.progress < duration - 10) {
         const initialPlayed = watchHistory.progress / duration;
@@ -182,7 +198,7 @@ export function VideoPlayer({
         playerRef.current?.seekTo(initialPlayed);
       }
     }
-  }, [watchHistory, historyLoading, duration]);
+  }, [watchHistory, historyLoading, syncLoading, duration, animeId, episodeId, getProgress]);
 
   // Control auto-hiding of controls
   useEffect(() => {

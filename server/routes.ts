@@ -121,9 +121,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Watch history routes
   app.get("/api/watch-history", isAuthenticated, async (req, res) => {
-    const userId = req.user!.id;
-    const history = await storage.getWatchHistory(userId);
-    res.json(history);
+    try {
+      const userId = req.user!.id;
+      
+      // Specific anime and episode query
+      const animeId = req.query.animeId ? parseInt(req.query.animeId as string) : undefined;
+      const episodeId = req.query.episodeId ? parseInt(req.query.episodeId as string) : undefined;
+      
+      // If both animeId and episodeId are provided, return specific watch history
+      if (animeId && episodeId) {
+        const specificHistory = await storage.getWatchHistoryByAnimeAndUser(userId, animeId, episodeId);
+        return res.json(specificHistory || null);
+      }
+      
+      // Otherwise return all watch history
+      const history = await storage.getWatchHistory(userId);
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ message: "İzleme geçmişi getirilirken bir hata oluştu" });
+    }
   });
 
   app.post("/api/watch-history", isAuthenticated, async (req, res) => {
@@ -300,11 +316,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Recommendations endpoint
+  // Cross-platform progress sync endpoint
+  app.get("/api/sync-progress", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      
+      // Get all watch history for this user
+      const allProgress = await storage.getWatchHistory(userId);
+      
+      // Format response to include only necessary info for sync
+      const progressData = allProgress.map(history => ({
+        animeId: history.animeId,
+        episodeId: history.episodeId,
+        progress: history.progress,
+        duration: history.duration,
+        lastWatched: history.lastWatched
+      }));
+      
+      res.json(progressData);
+    } catch (error) {
+      res.status(500).json({ message: "İzleme geçmişi senkronizasyonu sırasında bir hata oluştu" });
+    }
+  });
+
+  // Recommendations endpoint - enhanced to use watch history
   app.get("/api/recommendations", isAuthenticated, async (req, res) => {
-    const userId = req.user!.id;
-    const recommendations = await storage.getUserRecommendations(userId);
-    res.json({ animeIds: recommendations });
+    try {
+      const userId = req.user!.id;
+      
+      // Get existing recommendations if available
+      const recommendations = await storage.getUserRecommendations(userId);
+      
+      // If no recommendations exist, get watch history to generate some
+      if (recommendations.length === 0) {
+        const watchHistory = await storage.getWatchHistory(userId);
+        
+        // In a real implementation, this would use the watch history data to 
+        // calculate recommendations based on genre, completion rate, etc.
+        // For now, we'll just use the anime IDs from watch history
+        const watchedAnimeIds = Array.from(new Set(watchHistory.map(item => item.animeId)));
+        
+        // Save the watchedAnimeIds as recommendations
+        if (watchedAnimeIds.length > 0) {
+          await storage.updateUserRecommendations(userId, watchedAnimeIds);
+          return res.json({ animeIds: watchedAnimeIds });
+        }
+      }
+      
+      res.json({ animeIds: recommendations });
+    } catch (error) {
+      res.status(500).json({ message: "Önerileri getirirken bir hata oluştu" });
+    }
   });
   
   // Episode Comments API

@@ -41,7 +41,7 @@ export interface IStorage {
   getWatchHistory(userId: number): Promise<WatchHistory[]>;
   addWatchHistory(watchHistory: InsertWatchHistory): Promise<WatchHistory>;
   updateWatchHistory(id: number, watchHistory: Partial<WatchHistory>): Promise<WatchHistory | undefined>;
-  getWatchHistoryByAnimeAndUser(userId: number, animeId: number): Promise<WatchHistory | undefined>;
+  getWatchHistoryByAnimeAndUser(userId: number, animeId: number, episodeId?: number): Promise<WatchHistory | undefined>;
   
   // Favorites methods
   getFavorites(userId: number): Promise<Favorite[]>;
@@ -185,15 +185,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addWatchHistory(insertWatchHistory: InsertWatchHistory): Promise<WatchHistory> {
-    // Check if entry already exists
+    // Check if entry already exists for this specific episode
     const existing = await this.getWatchHistoryByAnimeAndUser(
       insertWatchHistory.userId,
-      insertWatchHistory.animeId
+      insertWatchHistory.animeId,
+      insertWatchHistory.episodeId
     );
 
     if (existing) {
       return this.updateWatchHistory(existing.id, {
         progress: insertWatchHistory.progress || 0,
+        duration: insertWatchHistory.duration || existing.duration,
         lastWatched: new Date()
       }) as Promise<WatchHistory>;
     }
@@ -220,12 +222,18 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async getWatchHistoryByAnimeAndUser(userId: number, animeId: number): Promise<WatchHistory | undefined> {
+  async getWatchHistoryByAnimeAndUser(userId: number, animeId: number, episodeId?: number): Promise<WatchHistory | undefined> {
+    let conditions = [
+      eq(watchHistory.userId, userId),
+      eq(watchHistory.animeId, animeId)
+    ];
+    
+    if (episodeId !== undefined) {
+      conditions.push(eq(watchHistory.episodeId, episodeId));
+    }
+    
     const result = await db.select().from(watchHistory)
-      .where(and(
-        eq(watchHistory.userId, userId),
-        eq(watchHistory.animeId, animeId)
-      ));
+      .where(and(...conditions));
     
     return result[0];
   }
@@ -714,16 +722,18 @@ export class MemStorage implements IStorage {
   }
 
   async addWatchHistory(insertWatchHistory: InsertWatchHistory): Promise<WatchHistory> {
-    // Check if entry already exists
+    // Check if entry already exists for this specific episode
     const existing = await this.getWatchHistoryByAnimeAndUser(
       insertWatchHistory.userId,
-      insertWatchHistory.animeId
+      insertWatchHistory.animeId,
+      insertWatchHistory.episodeId
     );
 
     if (existing) {
       const updated = {
         ...existing,
         progress: insertWatchHistory.progress || 0,
+        duration: insertWatchHistory.duration || existing.duration,
         lastWatched: new Date()
       };
       this.watchHistories.set(existing.id, updated);
@@ -755,9 +765,11 @@ export class MemStorage implements IStorage {
     return updatedWatchHistory;
   }
 
-  async getWatchHistoryByAnimeAndUser(userId: number, animeId: number): Promise<WatchHistory | undefined> {
+  async getWatchHistoryByAnimeAndUser(userId: number, animeId: number, episodeId?: number): Promise<WatchHistory | undefined> {
     return Array.from(this.watchHistories.values()).find(
-      (history) => history.userId === userId && history.animeId === animeId
+      (history) => history.userId === userId && 
+                  history.animeId === animeId && 
+                  (episodeId === undefined || history.episodeId === episodeId)
     );
   }
 
