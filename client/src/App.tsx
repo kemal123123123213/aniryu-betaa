@@ -26,7 +26,7 @@ function Router() {
         {() => <ProtectedRoute component={AnimeDetailPage} />}
       </Route>
       <Route path="/profil">
-        {() => <ProtectedRoute component={HomePage} />}
+        {() => <ProtectedRoute component={ProfilePage} />}
       </Route>
       <Route path="/ara">
         {() => <ProtectedRoute component={SearchPage} />}
@@ -34,8 +34,12 @@ function Router() {
       <Route path="/kategori/:genre">
         {() => <ProtectedRoute component={CategoryPage} />}
       </Route>
-      <Route path="/auth">{() => <AuthPage />}</Route>
-      <Route path="*">{() => <NotFound />}</Route>
+      <Route path="/auth">
+        <AuthPage />
+      </Route>
+      <Route>
+        <NotFound />
+      </Route>
     </Switch>
   );
 }

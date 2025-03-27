@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import { insertWatchHistorySchema, insertFavoriteSchema } from "@shared/schema";
 
@@ -207,63 +207,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ animeIds: recommendations });
   });
 
-  // WebSockets for watch party
-  const wss = new WebSocketServer({ server: httpServer });
-  
-  wss.on('connection', (ws) => {
-    ws.on('message', async (data) => {
-      try {
-        const message = JSON.parse(data.toString());
-        
-        if (message.type === 'join') {
-          // Handle join party
-          const { partyId, userId } = message;
-          await storage.addParticipantToParty(partyId, userId);
-          
-          // Broadcast to all clients in this party
-          wss.clients.forEach((client) => {
-            client.send(JSON.stringify({
-              type: 'participant_joined',
-              partyId,
-              userId
-            }));
-          });
-        } 
-        else if (message.type === 'sync') {
-          // Handle video sync
-          const { partyId, currentTime, isPlaying } = message;
-          await storage.updateWatchParty(partyId, { currentTime, isPlaying });
-          
-          // Broadcast to all clients in this party
-          wss.clients.forEach((client) => {
-            client.send(JSON.stringify({
-              type: 'sync_update',
-              partyId,
-              currentTime,
-              isPlaying
-            }));
-          });
-        }
-        else if (message.type === 'chat') {
-          // Handle chat message
-          const { partyId, userId, content } = message;
-          
-          // Broadcast to all clients in this party
-          wss.clients.forEach((client) => {
-            client.send(JSON.stringify({
-              type: 'chat_message',
-              partyId,
-              userId,
-              content,
-              timestamp: new Date().toISOString()
-            }));
-          });
-        }
-      } catch (error) {
-        console.error('WebSocket error:', error);
-      }
+  // WebSockets for watch party - with improved error handling
+  try {
+    const wss = new WebSocketServer({ 
+      server: httpServer,
+      path: '/ws',
+      perMessageDeflate: false // Disable compression for better compatibility
     });
-  });
+    
+    console.log("WebSocket server initialized");
+    
+    wss.on('connection', (ws) => {
+      console.log("WebSocket client connected");
+      
+      ws.on('error', (error) => {
+        console.error('WebSocket client error:', error);
+      });
+      
+      ws.on('message', async (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          console.log("WebSocket message received:", message.type);
+          
+          if (message.type === 'join') {
+            // Handle join party
+            const { partyId, userId } = message;
+            await storage.addParticipantToParty(partyId, userId);
+            
+            // Broadcast to all clients in this party
+            wss.clients.forEach((client) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'participant_joined',
+                  partyId,
+                  userId
+                }));
+              }
+            });
+          } 
+          else if (message.type === 'sync') {
+            // Handle video sync
+            const { partyId, currentTime, isPlaying } = message;
+            await storage.updateWatchParty(partyId, { currentTime, isPlaying });
+            
+            // Broadcast to all clients in this party
+            wss.clients.forEach((client) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'sync_update',
+                  partyId,
+                  currentTime,
+                  isPlaying
+                }));
+              }
+            });
+          }
+          else if (message.type === 'chat') {
+            // Handle chat message
+            const { partyId, userId, content } = message;
+            
+            // Broadcast to all clients in this party
+            wss.clients.forEach((client) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'chat_message',
+                  partyId,
+                  userId,
+                  content,
+                  timestamp: new Date().toISOString()
+                }));
+              }
+            });
+          }
+        } catch (error) {
+          console.error('WebSocket message processing error:', error);
+        }
+      });
+    });
+    
+    wss.on('error', (error) => {
+      console.error('WebSocket server error:', error);
+    });
+  } catch (error) {
+    console.error('WebSocket initialization error:', error);
+  }
 
   return httpServer;
 }

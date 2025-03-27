@@ -60,19 +60,19 @@ export default function ProfilePage(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState(defaultTab);
   
   // Get user's favorites
-  const { data: favorites, isLoading: favoritesLoading } = useQuery({
+  const { data: favorites = [], isLoading: favoritesLoading } = useQuery<any[]>({
     queryKey: ['/api/favorites'],
     enabled: !!user,
   });
 
   // Get user's watch history
-  const { data: watchHistory, isLoading: historyLoading } = useQuery({
+  const { data: watchHistory = [], isLoading: historyLoading } = useQuery<any[]>({
     queryKey: ['/api/watch-history'],
     enabled: !!user,
   });
   
   // Get user preferences
-  const { data: preferences, isLoading: preferencesLoading } = useQuery({
+  const { data: preferences = { darkMode: true, subtitleLanguage: 'tr', autoplay: true }, isLoading: preferencesLoading } = useQuery({
     queryKey: ['/api/preferences'],
     enabled: !!user,
   });
@@ -236,12 +236,12 @@ export default function ProfilePage(): React.JSX.Element {
       <div className="container mx-auto px-6 md:px-8 py-12">
         <div className="mb-8 flex flex-col md:flex-row gap-8 items-start md:items-center">
           <Avatar className="w-24 h-24 border-4 border-primary">
-            <AvatarImage src={user.profilePicture || "https://github.com/shadcn.png"} alt={user.username} />
-            <AvatarFallback className="text-2xl">{user.username.substring(0, 2).toUpperCase()}</AvatarFallback>
+            <AvatarImage src={user.profilePicture || "https://github.com/shadcn.png"} alt={user.username || "User"} />
+            <AvatarFallback className="text-2xl">{user.username ? user.username.substring(0, 2).toUpperCase() : "U"}</AvatarFallback>
           </Avatar>
           
           <div>
-            <h1 className="text-3xl font-bold">{user.username}</h1>
+            <h1 className="text-3xl font-bold">{user.username || "User"}</h1>
             <p className="text-gray-400">Üyelik: {new Date(user.createdAt).toLocaleDateString('tr-TR')}</p>
           </div>
         </div>
@@ -603,7 +603,13 @@ function WatchHistoryItem({ history }: { history: any }): React.JSX.Element {
     return <Skeleton className="h-24 w-full bg-[#353535]" />;
   }
   
-  if (!anime) return null;
+  if (!anime) {
+    return (
+      <div className="flex flex-col gap-2 bg-[#353535] rounded-lg p-4">
+        <p className="text-gray-400">Anime bilgisi bulunamadı</p>
+      </div>
+    );
+  }
   
   // Calculate completion percentage
   const completionPercentage = Math.min((history.progress / history.duration) * 100, 100);
