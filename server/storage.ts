@@ -3,8 +3,12 @@ import type { User, InsertUser, WatchHistory, InsertWatchHistory, Favorite, Inse
 import { randomBytes } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import { eq, and, desc } from "drizzle-orm";
+import connectPg from "connect-pg-simple";
+import { db } from "./db";
 
 const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   // User methods
@@ -46,6 +50,304 @@ export interface IStorage {
   
   // Session store
   sessionStore: session.Store;
+}
+
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
+
+  constructor() {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL environment variable is required");
+    }
+    
+    // Set up session store
+    this.sessionStore = new PostgresSessionStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+    });
+    
+    console.log("PostgreSQL database connection established");
+  }
+
+  // User methods
+  async getUser(id: number): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.username, username));
+    return result[0];
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email));
+    return result[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await db.insert(users).values({
+      ...insertUser,
+      profilePicture: insertUser.profilePicture || null,
+      createdAt: new Date()
+    }).returning();
+    return result[0];
+  }
+
+  async updateUser(id: number, userData: Partial<User>): Promise<User | undefined> {
+    const result = await db.update(users)
+      .set(userData)
+      .where(eq(users.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Watch history methods
+  async getWatchHistory(userId: number): Promise<WatchHistory[]> {
+    return db.select().from(watchHistory)
+      .where(eq(watchHistory.userId, userId))
+      .orderBy(desc(watchHistory.lastWatched));
+  }
+
+  async addWatchHistory(insertWatchHistory: InsertWatchHistory): Promise<WatchHistory> {
+    // Check if entry already exists
+    const existing = await this.getWatchHistoryByAnimeAndUser(
+      insertWatchHistory.userId,
+      insertWatchHistory.animeId
+    );
+
+    if (existing) {
+      return this.updateWatchHistory(existing.id, {
+        progress: insertWatchHistory.progress || 0,
+        lastWatched: new Date()
+      }) as Promise<WatchHistory>;
+    }
+
+    const result = await db.insert(watchHistory).values({
+      ...insertWatchHistory,
+      progress: insertWatchHistory.progress || 0,
+      duration: insertWatchHistory.duration || 0,
+      lastWatched: new Date()
+    }).returning();
+    
+    return result[0];
+  }
+
+  async updateWatchHistory(id: number, watchHistoryData: Partial<WatchHistory>): Promise<WatchHistory | undefined> {
+    const result = await db.update(watchHistory)
+      .set({
+        ...watchHistoryData,
+        lastWatched: new Date()
+      })
+      .where(eq(watchHistory.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async getWatchHistoryByAnimeAndUser(userId: number, animeId: number): Promise<WatchHistory | undefined> {
+    const result = await db.select().from(watchHistory)
+      .where(and(
+        eq(watchHistory.userId, userId),
+        eq(watchHistory.animeId, animeId)
+      ));
+    
+    return result[0];
+  }
+
+  // Favorites methods
+  async getFavorites(userId: number): Promise<Favorite[]> {
+    return db.select().from(favorites)
+      .where(eq(favorites.userId, userId));
+  }
+
+  async addFavorite(insertFavorite: InsertFavorite): Promise<Favorite> {
+    // Check if already favorited
+    const alreadyFavorite = await this.isFavorite(insertFavorite.userId, insertFavorite.animeId);
+    
+    if (alreadyFavorite) {
+      const existing = await db.select().from(favorites)
+        .where(and(
+          eq(favorites.userId, insertFavorite.userId),
+          eq(favorites.animeId, insertFavorite.animeId)
+        ));
+      return existing[0];
+    }
+
+    const result = await db.insert(favorites).values({
+      ...insertFavorite,
+      createdAt: new Date()
+    }).returning();
+    
+    return result[0];
+  }
+
+  async removeFavorite(userId: number, animeId: number): Promise<boolean> {
+    const result = await db.delete(favorites)
+      .where(and(
+        eq(favorites.userId, userId),
+        eq(favorites.animeId, animeId)
+      ))
+      .returning();
+    
+    return result.length > 0;
+  }
+
+  async isFavorite(userId: number, animeId: number): Promise<boolean> {
+    const result = await db.select().from(favorites)
+      .where(and(
+        eq(favorites.userId, userId),
+        eq(favorites.animeId, animeId)
+      ));
+    
+    return result.length > 0;
+  }
+
+  // User preferences methods
+  async getUserPreferences(userId: number): Promise<UserPreferences | undefined> {
+    const result = await db.select().from(userPreferences)
+      .where(eq(userPreferences.userId, userId));
+    
+    return result[0];
+  }
+
+  async createUserPreferences(insertPreferences: InsertUserPreferences): Promise<UserPreferences> {
+    const result = await db.insert(userPreferences).values({
+      ...insertPreferences,
+      genres: insertPreferences.genres || null,
+      watchedAnimeIds: insertPreferences.watchedAnimeIds || null,
+      subtitleLanguage: insertPreferences.subtitleLanguage || null,
+      darkMode: insertPreferences.darkMode || null
+    }).returning();
+    
+    return result[0];
+  }
+
+  async updateUserPreferences(userId: number, preferencesData: Partial<UserPreferences>): Promise<UserPreferences | undefined> {
+    const result = await db.update(userPreferences)
+      .set(preferencesData)
+      .where(eq(userPreferences.userId, userId))
+      .returning();
+    
+    return result[0];
+  }
+
+  // Watch party methods
+  async createWatchParty(insertWatchParty: InsertWatchParty): Promise<WatchParty> {
+    // If roomCode is not provided in the input, generate one
+    const roomCode = insertWatchParty.roomCode || randomBytes(4).toString('hex');
+    
+    const result = await db.insert(watchParties).values({
+      creatorId: insertWatchParty.creatorId,
+      animeId: insertWatchParty.animeId,
+      episodeId: insertWatchParty.episodeId,
+      isPublic: insertWatchParty.isPublic ?? true,
+      roomCode: roomCode,
+      startTime: new Date(),
+      endTime: null,
+      currentTime: 0,
+      isPlaying: false
+    }).returning();
+    
+    const watchParty = result[0];
+    
+    // Add creator as first participant
+    await db.insert(watchPartyParticipants).values({
+      partyId: watchParty.id,
+      userId: insertWatchParty.creatorId
+    });
+    
+    return watchParty;
+  }
+
+  async getWatchParty(id: number): Promise<WatchParty | undefined> {
+    const result = await db.select().from(watchParties)
+      .where(eq(watchParties.id, id));
+    
+    return result[0];
+  }
+
+  async getWatchPartyByCode(roomCode: string): Promise<WatchParty | undefined> {
+    const result = await db.select().from(watchParties)
+      .where(eq(watchParties.roomCode, roomCode));
+    
+    return result[0];
+  }
+
+  async updateWatchParty(id: number, watchPartyData: Partial<WatchParty>): Promise<WatchParty | undefined> {
+    const result = await db.update(watchParties)
+      .set(watchPartyData)
+      .where(eq(watchParties.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async addParticipantToParty(partyId: number, userId: number): Promise<boolean> {
+    // Check if participant is already in the party
+    const existing = await db.select().from(watchPartyParticipants)
+      .where(and(
+        eq(watchPartyParticipants.partyId, partyId),
+        eq(watchPartyParticipants.userId, userId)
+      ));
+    
+    if (existing.length > 0) {
+      return true;
+    }
+    
+    const result = await db.insert(watchPartyParticipants).values({
+      partyId,
+      userId
+    }).returning();
+    
+    return result.length > 0;
+  }
+
+  async getPartyParticipants(partyId: number): Promise<number[]> {
+    const result = await db.select().from(watchPartyParticipants)
+      .where(eq(watchPartyParticipants.partyId, partyId));
+    
+    return result.map((participant: any) => participant.userId);
+  }
+
+  async removeParticipantFromParty(partyId: number, userId: number): Promise<boolean> {
+    const result = await db.delete(watchPartyParticipants)
+      .where(and(
+        eq(watchPartyParticipants.partyId, partyId),
+        eq(watchPartyParticipants.userId, userId)
+      ))
+      .returning();
+    
+    return result.length > 0;
+  }
+
+  // Recommendations methods
+  async getUserRecommendations(userId: number): Promise<number[]> {
+    const result = await db.select().from(userRecommendations)
+      .where(eq(userRecommendations.userId, userId));
+    
+    if (result.length === 0) {
+      return [];
+    }
+    
+    return result[0].animeIds || [];
+  }
+
+  async updateUserRecommendations(userId: number, animeIds: number[]): Promise<void> {
+    const existing = await db.select().from(userRecommendations)
+      .where(eq(userRecommendations.userId, userId));
+    
+    if (existing.length === 0) {
+      await db.insert(userRecommendations).values({
+        userId,
+        animeIds
+      });
+    } else {
+      await db.update(userRecommendations)
+        .set({ animeIds })
+        .where(eq(userRecommendations.userId, userId));
+    }
+  }
 }
 
 export class MemStorage implements IStorage {
@@ -325,4 +627,7 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Use DatabaseStorage if we have a database URL, otherwise fall back to MemStorage
+export const storage = process.env.DATABASE_URL 
+  ? new DatabaseStorage() 
+  : new MemStorage();

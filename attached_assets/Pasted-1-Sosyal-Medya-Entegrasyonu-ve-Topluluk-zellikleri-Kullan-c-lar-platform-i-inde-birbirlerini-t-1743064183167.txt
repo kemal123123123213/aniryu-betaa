@@ -1,0 +1,55 @@
+1️⃣ Sosyal Medya Entegrasyonu ve Topluluk Özellikleri:
+✅ Kullanıcılar platform içinde birbirlerini takip edebilecek, özel mesaj gönderebilecek.
+✅ İçerik paylaşımı, yorum yapma ve anime hakkında tartışma alanları olacak.
+✅ Kullanıcılar anime incelemeleri yazabilecek, puan verebilecek.
+✅ Kendi anime listelerini oluşturup diğer kullanıcılarla paylaşabilecekler.
+✅ Facebook, Google ve Discord ile giriş yapma desteği olacak.
+
+2️⃣ Etkileşimli Anime İzleme Deneyimi:
+✅ Kullanıcılar izleme esnasında yorum bırakabilecek, canlı reaksiyonlar gönderebilecek.
+✅ Bölüm sonlarında anketler ve testler olacak (Örneğin: "Bu bölümü nasıl buldunuz?" gibi).
+✅ Gelişmiş "watch history" (izleme geçmişi) ile kullanıcıların izlediği bölümler detaylı şekilde takip edilecek.
+
+3️⃣ Oyunlaştırılmış Kullanıcı Deneyimi (Gamification):
+✅ Kullanıcılar platformda belirli başarımlar kazandıkça seviye atlayacak.
+✅ İzledikleri anime ve yaptıkları etkileşimlere göre rozetler kazanacaklar.
+✅ Haftalık ve aylık liderlik tabloları olacak (örneğin: en çok anime izleyenler, en çok yorum yapanlar vs.).
+
+4️⃣ Yapay Zeka Destekli Kişiselleştirme:
+✅ Kullanıcıların izleme alışkanlıklarına göre otomatik öneriler sunan bir AI sistemi olacak.
+✅ AI destekli "Bugün Ne İzlemeliyim?" rastgele anime öneri sistemi eklenecek.
+✅ Animeler hakkında AI tarafından oluşturulmuş özetler ve karakter analizleri sunulacak.
+
+5️⃣ Özelleştirilebilir ve Animasyonlu Video Player:
+✅ Özel temalara sahip ve kişiselleştirilebilir bir video oynatıcı olacak.
+✅ Kullanıcılar altyazı stilini, renkleri ve animasyon efektlerini değiştirebilecek.
+✅ İleri-geri sarma, hız kontrolü, altyazı seçenekleri, PiP (Picture-in-Picture) modu desteklenecek.
+✅ Bölüm aralarında geçiş animasyonları ve özel efektler eklenecek.
+
+6️⃣ AniList API Entegrasyonu:
+✅ AniList API kullanarak güncel anime bilgileri çekilecek.
+✅ Anime açıklamaları, türleri, puanları ve karakter bilgileri API'den alınacak.
+✅ Yeni sezon animeleri ve popüler animeler otomatik olarak güncellenecek.
+✅ Kullanıcılar AniList hesaplarıyla giriş yaparak kendi listelerine erişebilecek.
+
+7️⃣ Gerçek Zamanlı İzleme Partileri (Interactive Watch Parties):
+✅ Kullanıcılar arkadaşlarıyla veya halka açık odalarda anime izleyebilecek.
+✅ Odada canlı anketler, emoji reaksiyonları, hatta mini quizler olacak.
+✅ Odalar özel veya herkese açık olarak ayarlanabilecek.
+✅ Sesli ve yazılı sohbet desteği olacak.
+
+8️⃣ Gelişmiş Arama ve Kategorilendirme:
+✅ Tür, yıl, popülerlik, stüdyo bazlı filtreleme olacak.
+✅ Anime, karakter, yönetmen ve seslendirme sanatçısı bazlı arama motoru olacak.
+✅ Yeni eklenen ve popüler animeler ana sayfada gösterilecek.
+
+9️⃣ Mobil Uyumlu ve Hızlı Performans:
+✅ Site mobil uyumlu (responsive) olacak.
+✅ Önbellekleme (caching) mekanizmaları ile hızlı çalışacak.
+✅ Gece modu ve kişiselleştirilebilir tema seçenekleri olacak.
+
+🔟 Yönetim Paneli:
+✅ Adminler yeni anime ekleyebilecek, düzenleyebilecek, kaldırabilecek.
+✅ Kullanıcı raporları ve site istatistikleri görüntülenebilecek.
+✅ Yapay zeka öneri sisteminin performansı izlenip güncellenebilecek.
+
