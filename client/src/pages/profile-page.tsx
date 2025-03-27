@@ -9,12 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { AnimeCard } from '@/components/home/anime-card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Play, Clock, Calendar } from 'lucide-react';
+import { Loader2, Play, Clock, Calendar, Star, Heart } from 'lucide-react';
 import { useAnimeById } from '@/hooks/use-anilist';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -47,7 +48,19 @@ const preferencesSchema = z.object({
 
 export default function ProfilePage(): React.JSX.Element {
   const [searchParams] = useLocation();
-  const { user, isLoading, logoutMutation } = useAuth();
+  const { user, isLoading, logoutMutation } = useAuth() as { 
+    user: { 
+      id: number; 
+      username: string; 
+      email: string; 
+      profilePicture?: string | null; 
+      role: string;
+      isAdmin?: boolean;
+      createdAt: Date;
+    } | null;
+    isLoading: boolean;
+    logoutMutation: any;
+  };
   const { toast } = useToast();
   
   // Get active tab from URL
@@ -72,7 +85,11 @@ export default function ProfilePage(): React.JSX.Element {
   });
   
   // Get user preferences
-  const { data: preferences = { darkMode: true, subtitleLanguage: 'tr', autoplay: true }, isLoading: preferencesLoading } = useQuery({
+  const { data: preferences = { darkMode: true, subtitleLanguage: 'tr', autoplay: true }, isLoading: preferencesLoading } = useQuery<{
+    darkMode: boolean;
+    subtitleLanguage: string;
+    autoplay: boolean;
+  }>({
     queryKey: ['/api/preferences'],
     enabled: !!user,
   });
@@ -233,26 +250,76 @@ export default function ProfilePage(): React.JSX.Element {
     <div className="min-h-screen bg-[#121212] text-white">
       <Navbar />
       
-      <div className="container mx-auto px-6 md:px-8 py-12">
-        <div className="mb-8 flex flex-col md:flex-row gap-8 items-start md:items-center">
-          <Avatar className="w-24 h-24 border-4 border-primary">
+      {/* Profile Banner Background */}
+      <div className="relative h-60 w-full bg-gradient-to-r from-violet-900/50 via-primary/30 to-blue-900/50">
+        <div className="absolute inset-0 bg-[url('https://flowbite.s3.amazonaws.com/blocks/marketing-ui/hero/coast-landscape-2.png')] bg-cover bg-center opacity-20 mix-blend-overlay"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent"></div>
+      </div>
+        
+      <div className="container mx-auto px-6 md:px-8 -mt-20 relative z-10">
+        <div className="mb-8 flex flex-col md:flex-row gap-8 items-start">
+          <Avatar className="w-32 h-32 border-4 border-primary rounded-2xl shadow-lg shadow-primary/30">
             <AvatarImage src={user.profilePicture || "https://github.com/shadcn.png"} alt={user.username || "User"} />
-            <AvatarFallback className="text-2xl">{user.username ? user.username.substring(0, 2).toUpperCase() : "U"}</AvatarFallback>
+            <AvatarFallback className="text-3xl bg-gradient-to-br from-primary to-purple-700">{user.username ? user.username.substring(0, 2).toUpperCase() : "U"}</AvatarFallback>
           </Avatar>
           
-          <div>
-            <h1 className="text-3xl font-bold">{user.username || "User"}</h1>
-            <p className="text-gray-400">Üyelik: {new Date(user.createdAt).toLocaleDateString('tr-TR')}</p>
+          <div className="mt-2">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">{user.username || "User"}</h1>
+              {user.role === 'admin' && (
+                <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                  ADMİN
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-2 text-gray-400">
+              <div className="flex items-center">
+                <Calendar className="h-4 w-4 mr-1" />
+                <span>Üyelik: {new Date(user.createdAt).toLocaleDateString('tr-TR')}</span>
+              </div>
+              <div className="flex items-center">
+                <Clock className="h-4 w-4 mr-1" />
+                <span>{watchHistory.length} Anime İzlendi</span>
+              </div>
+            </div>
           </div>
         </div>
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="bg-[#2a2a2a] p-1 overflow-x-auto flex flex-nowrap whitespace-nowrap max-w-full">
-            <TabsTrigger value="profile">Profil</TabsTrigger>
-            <TabsTrigger value="history">İzleme Geçmişi</TabsTrigger>
-            <TabsTrigger value="favorites">Favoriler</TabsTrigger>
-            <TabsTrigger value="settings">Ayarlar</TabsTrigger>
-          </TabsList>
+          <div className="relative">
+            <div className="absolute -bottom-[1px] left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
+            <TabsList className="bg-transparent border-b border-gray-800 p-0 overflow-x-auto flex flex-nowrap whitespace-nowrap max-w-full gap-6">
+              <TabsTrigger value="profile" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 py-3">
+                <span className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Profil
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="history" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 py-3">
+                <span className="flex items-center">
+                  <Clock className="h-4 w-4 mr-2" />
+                  İzleme Geçmişi
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="favorites" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 py-3">
+                <span className="flex items-center">
+                  <Heart className="h-4 w-4 mr-2" />
+                  Favoriler
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 py-3">
+                <span className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Ayarlar
+                </span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
           
           {/* Profile Tab */}
           <TabsContent value="profile" className="space-y-8">
@@ -613,6 +680,7 @@ function WatchHistoryItem({ history }: { history: any }): React.JSX.Element {
   
   // Calculate completion percentage
   const completionPercentage = Math.min((history.progress / history.duration) * 100, 100);
+  const isCompleted = history.completed || completionPercentage > 95;
   
   // Format date
   const lastWatched = new Date(history.lastWatched);
@@ -622,47 +690,84 @@ function WatchHistoryItem({ history }: { history: any }): React.JSX.Element {
     day: 'numeric',
   });
   
+  // Format time for display
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+  
+  // Calculate time difference
+  const getTimeDifference = () => {
+    const now = new Date();
+    const diff = now.getTime() - lastWatched.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days === 0) return 'Bugün';
+    if (days === 1) return 'Dün';
+    if (days < 7) return `${days} gün önce`;
+    if (days < 30) return `${Math.floor(days / 7)} hafta önce`;
+    if (days < 365) return `${Math.floor(days / 30)} ay önce`;
+    return `${Math.floor(days / 365)} yıl önce`;
+  };
+  
   return (
     <div 
-      className="flex flex-col sm:flex-row gap-4 bg-[#353535] rounded-lg p-4 cursor-pointer hover:bg-[#454545] transition-colors"
+      className="group flex flex-col sm:flex-row gap-4 bg-[#252525] rounded-xl p-4 cursor-pointer hover:bg-gradient-to-r hover:from-[#2a2a2a] hover:to-[#353535] transition-all duration-300 border border-transparent hover:border-primary/20 shadow-md hover:shadow-primary/10"
       onClick={() => setLocation(`/izle/${history.animeId}/${history.episodeId}`)}
     >
-      <div className="w-full sm:w-32 h-20 rounded-lg overflow-hidden flex-shrink-0">
+      <div className="relative w-full sm:w-40 h-24 rounded-lg overflow-hidden flex-shrink-0">
         <img 
           src={anime.coverImage?.large || anime.coverImage?.medium} 
           alt={anime.title?.turkish || anime.title?.romaji} 
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-300"
         />
+        <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="bg-primary rounded-full p-2 transform group-hover:scale-110 transition-transform">
+            <Play className="h-5 w-5 text-white" />
+          </div>
+        </div>
+        
+        {isCompleted && (
+          <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+            Tamamlandı
+          </div>
+        )}
       </div>
       
       <div className="flex-1">
-        <h3 className="font-bold">{anime.title?.turkish || anime.title?.romaji}</h3>
-        <p className="text-sm text-gray-300">Bölüm {history.episodeId}</p>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{anime.title?.turkish || anime.title?.romaji}</h3>
+          <Badge variant="outline" className="bg-[#353535] text-gray-300 border-none">
+            {getTimeDifference()}
+          </Badge>
+        </div>
         
-        <div className="flex flex-col sm:flex-row sm:items-center mt-2 text-xs text-gray-400 gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 mt-1">
+          <Badge className="bg-primary/90 hover:bg-primary text-white">Bölüm {history.episodeId}</Badge>
+          {anime.genres && anime.genres.length > 0 && (
+            <span className="text-xs text-gray-400">{anime.genres.slice(0, 2).join(', ')}</span>
+          )}
+        </div>
+        
+        <div className="flex items-center mt-3 text-xs text-gray-400 gap-4">
           <div className="flex items-center">
-            <Clock className="h-3 w-3 mr-1" />
-            <span>{Math.floor(history.progress / 60)}:{(history.progress % 60).toString().padStart(2, '0')} / {Math.floor(history.duration / 60)}:{(history.duration % 60).toString().padStart(2, '0')}</span>
+            <Clock className="h-3.5 w-3.5 mr-1.5 text-primary/80" />
+            <span>{formatTime(history.progress)} / {formatTime(history.duration)}</span>
           </div>
           
           <div className="flex items-center">
-            <Calendar className="h-3 w-3 mr-1" />
+            <Calendar className="h-3.5 w-3.5 mr-1.5 text-primary/80" />
             <span>{formattedDate}</span>
           </div>
         </div>
         
-        <div className="mt-2 w-full bg-[#252525] rounded-full h-1">
+        <div className="w-full h-1.5 bg-gray-700 rounded-full mt-3 overflow-hidden">
           <div 
-            className="bg-primary h-full rounded-full" 
+            className="h-full bg-gradient-to-r from-primary to-violet-600" 
             style={{ width: `${completionPercentage}%` }}
-          ></div>
+          />
         </div>
-      </div>
-      
-      <div className="flex items-center justify-center">
-        <Button size="sm" variant="ghost" className="rounded-full h-10 w-10 p-0">
-          <Play className="h-5 w-5" />
-        </Button>
       </div>
     </div>
   );
@@ -671,26 +776,75 @@ function WatchHistoryItem({ history }: { history: any }): React.JSX.Element {
 // Favorite Anime Card Component
 function FavoriteAnimeCard({ animeId }: { animeId: number }): React.JSX.Element {
   const { data: anime, isLoading } = useAnimeById(animeId);
+  const [, setLocation] = useLocation();
   
   if (isLoading) {
     return (
       <div>
-        <Skeleton className="aspect-[3/4] w-full mb-2 bg-[#353535]" />
-        <Skeleton className="h-5 w-full mb-2 bg-[#353535]" />
-        <Skeleton className="h-4 w-2/3 bg-[#353535]" />
+        <Skeleton className="aspect-[3/4] w-full mb-2 bg-[#353535] rounded-xl" />
+        <Skeleton className="h-5 w-full mb-2 bg-[#353535] rounded-lg" />
+        <Skeleton className="h-4 w-2/3 bg-[#353535] rounded-lg" />
       </div>
     );
   }
   
   if (!anime) return null;
   
+  // Format score for display with stars
+  const formatScore = () => {
+    if (!anime.averageScore) return null;
+    
+    const score = anime.averageScore / 10;
+    return (
+      <div className="flex items-center gap-1">
+        <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+        <span className="text-yellow-400 font-medium">{score.toFixed(1)}</span>
+      </div>
+    );
+  };
+  
   return (
-    <AnimeCard 
-      id={anime.id}
-      title={anime.title?.turkish || anime.title?.romaji || anime.title?.english || ''}
-      image={anime.coverImage?.extraLarge || anime.coverImage?.large || ''}
-      score={anime.averageScore ? (anime.averageScore / 10).toFixed(1) : undefined}
-      genres={anime.genres || []}
-    />
+    <div 
+      className="group relative overflow-hidden rounded-xl transition-all duration-300 hover:shadow-xl hover:shadow-primary/10"
+      onClick={() => setLocation(`/anime/${anime.id}`)}
+    >
+      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl">
+        <img 
+          src={anime.coverImage?.extraLarge || anime.coverImage?.large || ''} 
+          alt={anime.title?.turkish || anime.title?.romaji || anime.title?.english || ''} 
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        
+        {/* Hover overlay with additional info */}
+        <div className="absolute inset-0 flex flex-col justify-end p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="flex items-center justify-between">
+            {formatScore()}
+            
+            <Badge variant="outline" className="bg-black/50 text-white border-none text-xs">
+              {anime.format || 'TV'}
+            </Badge>
+          </div>
+          
+          <Button variant="ghost" size="sm" className="mt-2 w-full bg-primary/80 text-white hover:bg-primary hover:text-white">
+            <Play className="mr-2 h-4 w-4" /> İzle
+          </Button>
+        </div>
+      </div>
+      
+      <div className="p-2">
+        <h3 className="font-semibold line-clamp-1 group-hover:text-primary transition-colors">
+          {anime.title?.turkish || anime.title?.romaji || anime.title?.english || ''}
+        </h3>
+        
+        <div className="mt-1 flex flex-wrap gap-1">
+          {(anime.genres || []).slice(0, 2).map((genre, index) => (
+            <span key={index} className="text-xs text-gray-400">
+              {index > 0 && '• '}{genre}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

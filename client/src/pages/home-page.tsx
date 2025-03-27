@@ -5,6 +5,7 @@ import { HeroSection } from '@/components/home/hero-section';
 import { AnimeSection } from '@/components/home/anime-section';
 import { ContinueWatching } from '@/components/home/continue-watching';
 import { Categories } from '@/components/home/categories';
+import { RecentAnimeSection } from '@/components/home/recent-anime-section';
 import { AiWhatToWatch, AiPersonalizedRecommendations } from '@/components/home/ai-recommendations';
 import { usePopularAnime, useSeasonalAnime, useTrendingAnime } from '@/hooks/use-anilist';
 import { useRecommendations } from '@/hooks/use-recommendations';
@@ -190,6 +191,15 @@ export default function HomePage() {
             isLoading={seasonalLoading}
             error={seasonalError}
           />
+        </motion.div>
+        
+        {/* Son Eklenen Animeler */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.4, duration: 0.6 }}
+        >
+          <RecentAnimeSection />
         </motion.div>
       </main>
       
