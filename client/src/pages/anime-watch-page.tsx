@@ -26,6 +26,20 @@ export default function AnimeWatchPage() {
     }
   }, [anime, episode]);
   
+  // Intro skip özelliğinin simülasyonu için
+  // Gerçek bir uygulamada, bu verilerin API'den gelmesi gerekir
+  const hasIntro = true; // API'den gelecek gerçek veri
+  useEffect(() => {
+    // İlk 10 saniye içinde intro skip butonunu gösterme simülasyonu
+    const timer = setTimeout(() => {
+      // Bu değişken gerçekte VideoPlayer bileşeni içindedir
+      // Bu sadece nasıl bir mantık kurulacağını göstermek için eklenmiştir
+      console.log("Intro skip butonu gösterilebilir");
+    }, 10000);
+    
+    return () => clearTimeout(timer);
+  }, [episodeId]);
+  
   // Generate fake episode data for this demo
   // In a real application, this would come from an API
   const generateEpisodes = (count: number) => {
@@ -130,9 +144,23 @@ export default function AnimeWatchPage() {
 
   // For demo purposes, create fake Turkish and English subtitles
   // In a real app, these would come from your API
+  // Bu altyazı URL'lerini gerçek VTT dosyalarıyla değiştirin
   const subtitles = [
-    { lang: 'tr', label: 'Türkçe', url: '/path/to/turkish/subs.vtt' },
-    { lang: 'en', label: 'İngilizce', url: '/path/to/english/subs.vtt' }
+    { 
+      lang: 'tr', 
+      label: 'Türkçe', 
+      url: 'https://raw.githubusercontent.com/mozilla/vtt.js/master/docs/samples/with-cue-settings.vtt' 
+    },
+    { 
+      lang: 'en', 
+      label: 'İngilizce', 
+      url: 'https://raw.githubusercontent.com/mozilla/vtt.js/master/docs/samples/with-metadata.vtt' 
+    },
+    { 
+      lang: 'ja', 
+      label: 'Japonca', 
+      url: 'https://raw.githubusercontent.com/mozilla/vtt.js/master/docs/samples/with-positioning.vtt' 
+    }
   ];
 
   return (
@@ -197,6 +225,7 @@ export default function AnimeWatchPage() {
             subtitles={subtitles}
             onNext={nextEpisodeAvailable ? goToNextEpisode : undefined}
             nextEpisodeAvailable={nextEpisodeAvailable}
+            thumbnailUrl={anime.coverImage?.medium || undefined}
           />
         </div>
         

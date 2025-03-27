@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactPlayer from 'react-player';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { 
@@ -16,7 +17,15 @@ import {
   ChevronRight,
   Subtitles,
   Forward,
-  Rewind
+  Rewind,
+  Sun,
+  Moon,
+  Palette,
+  Type,
+  Text,
+  RotateCw,
+  Maximize,
+  Camera
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -25,12 +34,26 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
 import { formatTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
+// Video oynatıcı bileşeni için gelişmiş props
 interface VideoPlayerProps {
   videoUrl: string;
   animeId: number;
@@ -45,6 +68,30 @@ interface VideoPlayerProps {
   }>;
   onNext?: () => void;
   nextEpisodeAvailable?: boolean;
+  thumbnailUrl?: string; // Video önizleme resmi URL'si
+}
+
+// Video oynatıcı tema türleri
+type VideoPlayerTheme = 'classic' | 'dark' | 'light' | 'anime' | 'minimal';
+
+// Altyazı biçimlendirme ayarları tipi
+interface SubtitleStyle {
+  fontSize: string;
+  fontFamily: string;
+  color: string;
+  backgroundColor: string;
+  textShadow: boolean;
+  position: 'bottom' | 'top' | 'middle';
+}
+
+// Video oynatıcı görünüm ayarları
+interface VideoPlayerSettings {
+  theme: VideoPlayerTheme;
+  subtitleStyle: SubtitleStyle;
+  showSkipIntro: boolean;
+  showSkipOutro: boolean;
+  autoPlay: boolean;
+  saveLastPosition: boolean;
 }
 
 export function VideoPlayer({
@@ -56,8 +103,10 @@ export function VideoPlayer({
   episodeTitle,
   subtitles = [],
   onNext,
-  nextEpisodeAvailable = false
+  nextEpisodeAvailable = false,
+  thumbnailUrl
 }: VideoPlayerProps) {
+  // Oynatıcı temel durumları
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [muted, setMuted] = useState(false);
@@ -70,6 +119,25 @@ export function VideoPlayer({
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const [hoverTime, setHoverTime] = useState<string>('');
+  
+  // Gelişmiş özellikler için durumlar
+  const [showSettings, setShowSettings] = useState(false);
+  const [showSubtitleSettings, setShowSubtitleSettings] = useState(false);
+  const [captureScreenshot, setCaptureScreenshot] = useState(false);
+  const [showNextEpisodeOverlay, setShowNextEpisodeOverlay] = useState(false);
+  const [showSkipIntroButton, setShowSkipIntroButton] = useState(false);
+  const [playerTheme, setPlayerTheme] = useState<VideoPlayerTheme>('dark');
+  const [isBuffering, setIsBuffering] = useState(false);
+  
+  // Altyazı biçimlendirme ayarları
+  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>({
+    fontSize: '16px',
+    fontFamily: 'Arial, sans-serif',
+    color: 'white',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    textShadow: true,
+    position: 'bottom'
+  });
   
   const playerRef = useRef<ReactPlayer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -301,11 +369,130 @@ export function VideoPlayer({
     };
   }, []);
 
+  // Tema spesifik stilleri uygulama
+  const getThemeClasses = () => {
+    switch (playerTheme) {
+      case 'light':
+        return 'bg-white text-black';
+      case 'anime':
+        return 'bg-gradient-to-r from-purple-800 to-blue-900 text-white';
+      case 'minimal':
+        return 'bg-black text-white';
+      case 'classic':
+        return 'bg-gray-900 text-white';
+      case 'dark':
+      default:
+        return 'bg-black text-white';
+    }
+  };
+  
+  // Altyazı stili uygulaması için CSS değişkenleri
+  const getSubtitleStyles = () => {
+    let textShadowVal = subtitleStyle.textShadow ? '1px 1px 2px black, 0 0 1em black, 0 0 0.2em black' : 'none';
+    
+    // Altyazı pozisyonu
+    let positionStyle = {};
+    switch (subtitleStyle.position) {
+      case 'top':
+        positionStyle = { top: '10%', bottom: 'auto' };
+        break;
+      case 'middle':
+        positionStyle = { top: '50%', transform: 'translateY(-50%)' };
+        break;
+      case 'bottom':
+      default:
+        positionStyle = { bottom: '10%', top: 'auto' };
+        break;
+    }
+    
+    return {
+      '--subtitle-font-size': subtitleStyle.fontSize,
+      '--subtitle-font-family': subtitleStyle.fontFamily,
+      '--subtitle-color': subtitleStyle.color,
+      '--subtitle-bg-color': subtitleStyle.backgroundColor,
+      '--subtitle-text-shadow': textShadowVal,
+      ...positionStyle
+    } as React.CSSProperties;
+  };
+  
+  // Ekran görüntüsü alma fonksiyonu
+  const takeScreenshot = () => {
+    const video = containerRef.current?.querySelector('video');
+    if (!video) return;
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Ekran görüntüsünü bir link olarak indirme
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `${title} - Bölüm ${episodeId} - ${formatTime(played * duration)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Ekran görüntüsü alındıktan sonra durumu sıfırla
+      setCaptureScreenshot(false);
+    } catch (error) {
+      console.error('Ekran görüntüsü alınamadı:', error);
+      setCaptureScreenshot(false);
+    }
+  };
+  
+  // Ekran görüntüsü alma işlemini tetikle
+  useEffect(() => {
+    if (captureScreenshot) {
+      takeScreenshot();
+    }
+  }, [captureScreenshot]);
+  
+  // Sonraki bölüm overlay'ı için süre takibi
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (played > 0.97 && nextEpisodeAvailable && !showNextEpisodeOverlay) {
+      setShowNextEpisodeOverlay(true);
+    } else if (played < 0.9 && showNextEpisodeOverlay) {
+      setShowNextEpisodeOverlay(false);
+    }
+    
+    return () => clearTimeout(timeout);
+  }, [played, nextEpisodeAvailable, showNextEpisodeOverlay]);
+  
+  // "İntroyu Geç" butonunu göstermek için süre takibi yapın
+  useEffect(() => {
+    let introTimeout: NodeJS.Timeout;
+    
+    // Videonun başında belirli bir zaman aralığında "İntroyu Geç" butonu gösterilir
+    // Gerçek uygulamada, bu anime'nin intro zamanları API'den gelmelidir
+    if (played > 0.02 && played < 0.2 && !showSkipIntroButton) {
+      setShowSkipIntroButton(true);
+      
+      // İntro zamanı geçtikten sonra butonu gizle
+      introTimeout = setTimeout(() => {
+        setShowSkipIntroButton(false);
+      }, 15000); // 15 saniye sonra intro butonu kaybolur
+    }
+    
+    return () => clearTimeout(introTimeout);
+  }, [played, showSkipIntroButton]);
+  
+  // CSS class değişkenlerini oluştur
+  const containerClasses = cn(
+    "video-container relative aspect-video rounded-lg overflow-hidden",
+    getThemeClasses()
+  );
+
   return (
     <div 
       ref={containerRef}
-      className="video-container relative aspect-video bg-black rounded-lg overflow-hidden"
+      className={containerClasses}
       onMouseMove={handleMouseMove}
+      style={getSubtitleStyles()}
     >
       <ReactPlayer
         ref={playerRef}
@@ -318,6 +505,8 @@ export function VideoPlayer({
         playbackRate={playbackRate}
         onProgress={handleProgress}
         onEnded={handleEnded}
+        onBuffer={() => setIsBuffering(true)}
+        onBufferEnd={() => setIsBuffering(false)}
         config={{
           file: {
             attributes: {
@@ -334,23 +523,100 @@ export function VideoPlayer({
         }}
       />
 
+      {/* Video buffering animation */}
+      <AnimatePresence>
+        {isBuffering && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-30"
+          >
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="w-12 h-12 border-4 border-gray-400 border-t-primary rounded-full"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Play overlay - visible when video is paused */}
-      {!playing && (
-        <div 
-          className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 cursor-pointer z-10"
-          onClick={handlePlayPause}
-        >
-          <button 
-            className="bg-primary hover:bg-primary-dark text-white p-6 rounded-full flex items-center justify-center transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePlayPause();
+      <AnimatePresence>
+        {!playing && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 cursor-pointer z-10"
+            onClick={handlePlayPause}
+          >
+            <motion.button 
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-primary hover:bg-primary-dark text-white p-6 rounded-full flex items-center justify-center transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlayPause();
+              }}
+            >
+              <Play className="h-10 w-10" />
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Skip Intro Button - Appears when appropriate */}
+      <AnimatePresence>
+        {showSkipIntroButton && (
+          <motion.button
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="absolute bottom-32 right-4 bg-primary text-white px-4 py-2 rounded-md z-30"
+            onClick={() => {
+              // Teorik olarak, intro süresi 90 saniye
+              const skipToTime = Math.min(90, duration) / duration;
+              playerRef.current?.seekTo(skipToTime);
+              setShowSkipIntroButton(false);
             }}
           >
-            <Play className="h-10 w-10" />
-          </button>
-        </div>
-      )}
+            İntroyu Geç
+          </motion.button>
+        )}
+      </AnimatePresence>
+      
+      {/* Next Episode Overlay */}
+      <AnimatePresence>
+        {showNextEpisodeOverlay && nextEpisodeAvailable && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-40"
+          >
+            <div className="text-center">
+              <h3 className="text-2xl font-bold mb-4">Sonraki Bölüm</h3>
+              <p className="mb-6">5 saniye içinde otomatik olarak başlayacak.</p>
+              <div className="flex space-x-4 justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowNextEpisodeOverlay(false)}
+                >
+                  İptal
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={onNext}
+                >
+                  Şimdi İzle
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Video controls */}
       <div 
@@ -468,27 +734,63 @@ export function VideoPlayer({
           {/* Right controls */}
           <div className="flex items-center space-x-3">
             <div className="hidden md:flex space-x-3">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={handleSkipBackward}
-                className="text-white hover:text-primary transition-colors"
-                title="10 saniye geri"
-              >
-                <Rewind className="h-5 w-5" />
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={handleSkipBackward}
+                      className="text-white hover:text-primary transition-colors"
+                    >
+                      <Rewind className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>10 saniye geri (J tuşu)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={handleSkipForward}
-                className="text-white hover:text-primary transition-colors"
-                title="10 saniye ileri"
-              >
-                <Forward className="h-5 w-5" />
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={handleSkipForward}
+                      className="text-white hover:text-primary transition-colors"
+                    >
+                      <Forward className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>10 saniye ileri (L tuşu)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             
+            {/* Ekran görüntüsü alma butonu */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setCaptureScreenshot(true)}
+                    className="text-white hover:text-primary transition-colors"
+                  >
+                    <Camera className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Ekran görüntüsü al</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            
+            {/* Altyazı menüsü */}
             {subtitles.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -496,7 +798,6 @@ export function VideoPlayer({
                     variant="ghost" 
                     size="icon" 
                     className="text-white hover:text-primary transition-colors"
-                    title="Altyazılar"
                   >
                     <Subtitles className="h-5 w-5" />
                   </Button>
@@ -519,24 +820,172 @@ export function VideoPlayer({
                       {subtitle.label}
                     </DropdownMenuItem>
                   ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Text className="mr-2 h-4 w-4" />
+                      <span>Altyazı Stili</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent className="bg-dark-card text-white">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <span>Yazı Boyutu</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent className="bg-dark-card text-white">
+                              {['12px', '14px', '16px', '18px', '20px', '22px'].map(size => (
+                                <DropdownMenuItem 
+                                  key={size}
+                                  onClick={() => setSubtitleStyle({...subtitleStyle, fontSize: size})}
+                                  className={subtitleStyle.fontSize === size ? 'bg-primary/20' : ''}
+                                >
+                                  {size}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+                        
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <span>Yazı Rengi</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent className="bg-dark-card text-white">
+                              {[
+                                { name: 'Beyaz', value: 'white' },
+                                { name: 'Sarı', value: 'yellow' },
+                                { name: 'Yeşil', value: 'lightgreen' },
+                                { name: 'Mavi', value: 'lightblue' },
+                                { name: 'Pembe', value: 'pink' }
+                              ].map(color => (
+                                <DropdownMenuItem 
+                                  key={color.value}
+                                  onClick={() => setSubtitleStyle({...subtitleStyle, color: color.value})}
+                                  className={subtitleStyle.color === color.value ? 'bg-primary/20' : ''}
+                                >
+                                  <div className="flex items-center">
+                                    <div 
+                                      className="w-4 h-4 rounded-full mr-2" 
+                                      style={{ backgroundColor: color.value }}
+                                    ></div>
+                                    {color.name}
+                                  </div>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+                        
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <span>Arkaplan</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent className="bg-dark-card text-white">
+                              {[
+                                { name: 'Siyah', value: 'rgba(0, 0, 0, 0.7)' },
+                                { name: 'Koyu Gri', value: 'rgba(50, 50, 50, 0.7)' },
+                                { name: 'Şeffaf', value: 'transparent' },
+                                { name: 'Mavi', value: 'rgba(0, 0, 50, 0.7)' }
+                              ].map(bg => (
+                                <DropdownMenuItem 
+                                  key={bg.value}
+                                  onClick={() => setSubtitleStyle({...subtitleStyle, backgroundColor: bg.value})}
+                                  className={subtitleStyle.backgroundColor === bg.value ? 'bg-primary/20' : ''}
+                                >
+                                  {bg.name}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+                        
+                        <DropdownMenuItem 
+                          onClick={() => setSubtitleStyle({...subtitleStyle, textShadow: !subtitleStyle.textShadow})}
+                        >
+                          <div className="flex items-center">
+                            <input 
+                              type="checkbox" 
+                              checked={subtitleStyle.textShadow}
+                              className="mr-2"
+                              readOnly
+                            />
+                            Gölge Efekti
+                          </div>
+                        </DropdownMenuItem>
+                        
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <span>Pozisyon</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent className="bg-dark-card text-white">
+                              <DropdownMenuItem 
+                                onClick={() => setSubtitleStyle({...subtitleStyle, position: 'bottom'})}
+                                className={subtitleStyle.position === 'bottom' ? 'bg-primary/20' : ''}
+                              >
+                                Alt
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setSubtitleStyle({...subtitleStyle, position: 'middle'})}
+                                className={subtitleStyle.position === 'middle' ? 'bg-primary/20' : ''}
+                              >
+                                Orta
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setSubtitleStyle({...subtitleStyle, position: 'top'})}
+                                className={subtitleStyle.position === 'top' ? 'bg-primary/20' : ''}
+                              >
+                                Üst
+                              </DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
             
+            {/* Ayarlar Menüsü */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   className="text-white hover:text-primary transition-colors"
-                  title="Oynatma Hızı"
                 >
                   <Settings className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-dark-card text-white">
-                <DropdownMenuLabel>Oynatma Hızı</DropdownMenuLabel>
+                <DropdownMenuLabel>Oynatıcı Ayarları</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Palette className="mr-2 h-4 w-4" />
+                    <span>Oynatıcı Teması</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent className="bg-dark-card text-white">
+                      <DropdownMenuRadioGroup value={playerTheme} onValueChange={(value) => setPlayerTheme(value as VideoPlayerTheme)}>
+                        <DropdownMenuRadioItem value="dark">Karanlık</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="light">Aydınlık</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="anime">Anime</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="minimal">Minimal</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="classic">Klasik</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
+                
+                <DropdownMenuSeparator />
+                
+                <DropdownMenuLabel>Oynatma Hızı</DropdownMenuLabel>
                 {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => (
                   <DropdownMenuItem
                     key={rate}
@@ -549,25 +998,41 @@ export function VideoPlayer({
               </DropdownMenuContent>
             </DropdownMenu>
             
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={togglePictureInPicture}
-              className="text-white hover:text-primary transition-colors"
-              title="Resim İçinde Resim"
-            >
-              <PictureInPicture className="h-5 w-5" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={togglePictureInPicture}
+                    className="text-white hover:text-primary transition-colors"
+                  >
+                    <PictureInPicture className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Resim İçinde Resim</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleFullscreen}
-              className="text-white hover:text-primary transition-colors"
-              title="Tam Ekran"
-            >
-              <Fullscreen className="h-5 w-5" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={toggleFullscreen}
+                    className="text-white hover:text-primary transition-colors"
+                  >
+                    <Fullscreen className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Tam Ekran (F tuşu)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </div>

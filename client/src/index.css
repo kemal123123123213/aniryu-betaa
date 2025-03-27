@@ -10,4 +10,97 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+  
+  /* Custom video player styles */
+  .video-container {
+    --subtitle-font-size: 16px;
+    --subtitle-font-family: 'Arial, sans-serif';
+    --subtitle-color: white;
+    --subtitle-bg-color: rgba(0, 0, 0, 0.5);
+    --subtitle-text-shadow: '1px 1px 2px black';
+  }
+  
+  /* Custom subtitle styling */
+  .video-container :global(video::cue) {
+    font-size: var(--subtitle-font-size);
+    font-family: var(--subtitle-font-family);
+    color: var(--subtitle-color);
+    background-color: var(--subtitle-bg-color);
+    text-shadow: var(--subtitle-text-shadow);
+  }
+  
+  /* Theme variations */
+  .video-container.light {
+    --control-bg: rgba(255, 255, 255, 0.7);
+    --control-text: #000;
+    --control-hover: rgba(200, 200, 200, 0.8);
+  }
+  
+  .video-container.dark {
+    --control-bg: rgba(0, 0, 0, 0.7);
+    --control-text: #fff;
+    --control-hover: rgba(50, 50, 50, 0.8);
+  }
+  
+  .video-container.anime {
+    --control-bg: rgba(76, 29, 149, 0.7);
+    --control-text: #fff;
+    --control-hover: rgba(91, 33, 182, 0.8);
+  }
+  
+  .video-container.minimal .video-controls {
+    opacity: 0.7 !important;
+    transition: opacity 0.3s ease;
+  }
+  
+  .video-container.minimal:hover .video-controls {
+    opacity: 1 !important;
+  }
+  
+  /* Custom scrollbar for episode list */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-gray-800;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-600 rounded-full;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+  }
+  
+  /* Animation classes */
+  @keyframes pulse {
+    0% {
+      transform: scale(0.95);
+      opacity: 0.7;
+    }
+    70% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0.95);
+      opacity: 0.7;
+    }
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse 3s infinite ease-in-out;
+  }
+  
+  /* Progress bar styling */
+  .progress-bar {
+    height: 4px;
+    transition: height 0.2s ease;
+  }
+  
+  .progress-bar:hover {
+    height: 6px;
+  }
 }
