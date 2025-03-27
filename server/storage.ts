@@ -1,7 +1,8 @@
 import { 
   users, watchHistory, favorites, userPreferences, userRecommendations, 
   watchParties, watchPartyParticipants, messages,
-  episodeComments, episodeReactions, episodePolls, pollOptions, pollVotes
+  episodeComments, episodeReactions, episodePolls, pollOptions, pollVotes,
+  fansubs, fansubSources
 } from "@shared/schema";
 import type { 
   User, InsertUser, WatchHistory, InsertWatchHistory, 
@@ -11,7 +12,9 @@ import type {
   EpisodeReaction, InsertEpisodeReaction,
   EpisodePoll, InsertEpisodePoll,
   PollOption, InsertPollOption,
-  PollVote, InsertPollVote
+  PollVote, InsertPollVote,
+  Fansub, InsertFansub, 
+  FansubSource, InsertFansubSource
 } from "@shared/schema";
 import { randomBytes } from "crypto";
 import session from "express-session";
@@ -93,6 +96,21 @@ export interface IStorage {
   getPollVotes(pollId: number): Promise<PollVote[]>;
   getUserVote(pollId: number, userId: number): Promise<PollVote | undefined>;
   addPollVote(vote: InsertPollVote): Promise<PollVote>;
+  
+  // Fansub methods
+  getAllFansubs(): Promise<Fansub[]>;
+  getFansub(id: number): Promise<Fansub | undefined>;
+  createFansub(fansub: InsertFansub): Promise<Fansub>;
+  updateFansub(id: number, fansub: Partial<Fansub>): Promise<Fansub | undefined>;
+  deleteFansub(id: number): Promise<boolean>;
+  
+  // Fansub source methods
+  getFansubSources(animeId: number, episodeId: number): Promise<FansubSource[]>;
+  getFansubSourcesWithDetails(animeId: number, episodeId: number): Promise<(FansubSource & { fansub: Fansub | undefined })[]>;
+  getFansubSource(id: number): Promise<FansubSource | undefined>;
+  createFansubSource(source: InsertFansubSource): Promise<FansubSource>;
+  updateFansubSource(id: number, source: Partial<FansubSource>): Promise<FansubSource | undefined>;
+  deleteFansubSource(id: number): Promise<boolean>;
   
   // Session store
   sessionStore: session.Store;
@@ -621,6 +639,90 @@ export class DatabaseStorage implements IStorage {
     
     return result[0];
   }
+
+  // Fansub methods
+  async getAllFansubs(): Promise<Fansub[]> {
+    return db.select().from(fansubs);
+  }
+
+  async getFansub(id: number): Promise<Fansub | undefined> {
+    const result = await db.select().from(fansubs)
+      .where(eq(fansubs.id, id));
+    return result[0];
+  }
+
+  async createFansub(insertFansub: InsertFansub): Promise<Fansub> {
+    const result = await db.insert(fansubs).values({
+      ...insertFansub,
+      createdAt: new Date()
+    }).returning();
+    return result[0];
+  }
+
+  async updateFansub(id: number, fansubData: Partial<Fansub>): Promise<Fansub | undefined> {
+    const result = await db.update(fansubs)
+      .set(fansubData)
+      .where(eq(fansubs.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteFansub(id: number): Promise<boolean> {
+    const result = await db.delete(fansubs)
+      .where(eq(fansubs.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Fansub source methods
+  async getFansubSources(animeId: number, episodeId: number): Promise<FansubSource[]> {
+    return db.select().from(fansubSources)
+      .where(and(
+        eq(fansubSources.animeId, animeId),
+        eq(fansubSources.episodeId, episodeId)
+      ));
+  }
+
+  async getFansubSourcesWithDetails(animeId: number, episodeId: number): Promise<(FansubSource & { fansub: Fansub | undefined })[]> {
+    const sources = await this.getFansubSources(animeId, episodeId);
+    
+    // Her bir kaynak için fansub bilgilerini yükle
+    const sourcesWithDetails = await Promise.all(sources.map(async (source) => {
+      const fansub = await this.getFansub(source.fansubId);
+      return { ...source, fansub };
+    }));
+    
+    return sourcesWithDetails;
+  }
+
+  async getFansubSource(id: number): Promise<FansubSource | undefined> {
+    const result = await db.select().from(fansubSources)
+      .where(eq(fansubSources.id, id));
+    return result[0];
+  }
+
+  async createFansubSource(insertSource: InsertFansubSource): Promise<FansubSource> {
+    const result = await db.insert(fansubSources).values({
+      ...insertSource,
+      addedAt: new Date()
+    }).returning();
+    return result[0];
+  }
+
+  async updateFansubSource(id: number, sourceData: Partial<FansubSource>): Promise<FansubSource | undefined> {
+    const result = await db.update(fansubSources)
+      .set(sourceData)
+      .where(eq(fansubSources.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteFansubSource(id: number): Promise<boolean> {
+    const result = await db.delete(fansubSources)
+      .where(eq(fansubSources.id, id))
+      .returning();
+    return result.length > 0;
+  }
 }
 
 export class MemStorage implements IStorage {
@@ -637,6 +739,8 @@ export class MemStorage implements IStorage {
   private episodePolls: Map<number, EpisodePoll>;
   private pollOptions: Map<number, PollOption>;
   private pollVotes: Map<number, PollVote>;
+  private fansubs: Map<number, Fansub>;
+  private fansubSources: Map<number, FansubSource>;
   currentId: { [key: string]: number };
   sessionStore: session.Store;
 
@@ -654,6 +758,8 @@ export class MemStorage implements IStorage {
     this.episodePolls = new Map();
     this.pollOptions = new Map();
     this.pollVotes = new Map();
+    this.fansubs = new Map();
+    this.fansubSources = new Map();
     
     this.currentId = {
       users: 1,
@@ -667,7 +773,9 @@ export class MemStorage implements IStorage {
       reactions: 1,
       polls: 1,
       pollOptions: 1,
-      pollVotes: 1
+      pollVotes: 1,
+      fansubs: 1,
+      fansubSources: 1
     };
     
     this.sessionStore = new MemoryStore({
@@ -1151,6 +1259,87 @@ export class MemStorage implements IStorage {
     
     this.pollVotes.set(id, vote);
     return vote;
+  }
+  
+
+
+  // Fansub methods
+  async getAllFansubs(): Promise<Fansub[]> {
+    return Array.from(this.fansubs.values());
+  }
+
+  async getFansub(id: number): Promise<Fansub | undefined> {
+    return this.fansubs.get(id);
+  }
+
+  async createFansub(insertFansub: InsertFansub): Promise<Fansub> {
+    const id = this.currentId.fansubs++;
+    const fansub: Fansub = {
+      ...insertFansub,
+      id,
+      createdAt: new Date()
+    };
+    this.fansubs.set(id, fansub);
+    return fansub;
+  }
+
+  async updateFansub(id: number, fansubData: Partial<Fansub>): Promise<Fansub | undefined> {
+    const fansub = this.fansubs.get(id);
+    if (!fansub) return undefined;
+
+    const updatedFansub = { ...fansub, ...fansubData };
+    this.fansubs.set(id, updatedFansub);
+    return updatedFansub;
+  }
+
+  async deleteFansub(id: number): Promise<boolean> {
+    return this.fansubs.delete(id);
+  }
+
+  // Fansub source methods
+  async getFansubSources(animeId: number, episodeId: number): Promise<FansubSource[]> {
+    return Array.from(this.fansubSources.values())
+      .filter(source => source.animeId === animeId && source.episodeId === episodeId);
+  }
+
+  async getFansubSourcesWithDetails(animeId: number, episodeId: number): Promise<(FansubSource & { fansub: Fansub | undefined })[]> {
+    const sources = await this.getFansubSources(animeId, episodeId);
+    
+    // Her bir kaynak için fansub bilgilerini ekle
+    const sourcesWithDetails = await Promise.all(sources.map(async (source) => {
+      const fansub = await this.getFansub(source.fansubId);
+      return { ...source, fansub };
+    }));
+    
+    return sourcesWithDetails;
+  }
+
+  async getFansubSource(id: number): Promise<FansubSource | undefined> {
+    return this.fansubSources.get(id);
+  }
+
+  async createFansubSource(insertSource: InsertFansubSource): Promise<FansubSource> {
+    const id = this.currentId.fansubSources++;
+    const source: FansubSource = {
+      ...insertSource,
+      id,
+      addedAt: new Date()
+    };
+    this.fansubSources.set(id, source);
+    return source;
+  }
+
+  async updateFansubSource(id: number, sourceData: Partial<FansubSource>): Promise<FansubSource | undefined> {
+    const source = this.fansubSources.get(id);
+    if (!source) return undefined;
+
+    const updatedSource = { ...source, ...sourceData };
+    this.fansubSources.set(id, updatedSource);
+    return updatedSource;
+  }
+
+  async deleteFansubSource(id: number): Promise<boolean> {
+    return this.fansubSources.delete(id);
   }
 }
 

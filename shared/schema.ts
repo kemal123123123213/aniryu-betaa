@@ -245,3 +245,46 @@ export type PollVote = typeof pollVotes.$inferSelect;
 export type InsertPollVote = z.infer<typeof insertPollVoteSchema>;
 
 export type LoginCredentials = z.infer<typeof loginSchema>;
+
+// Fansub modelleri
+export const fansubs = pgTable("fansubs", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  logo: text("logo"),
+  description: text("description"),
+  website: text("website"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Fansub Video Kaynakları
+export const fansubSources = pgTable("fansub_sources", {
+  id: serial("id").primaryKey(),
+  fansubId: integer("fansub_id").notNull().references(() => fansubs.id),
+  animeId: integer("anime_id").notNull(),
+  episodeId: integer("episode_id").notNull(),
+  videoUrl: text("video_url").notNull(),
+  quality: text("quality").default("720p"),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+});
+
+// Fansub şemaları
+export const insertFansubSchema = createInsertSchema(fansubs).pick({
+  name: true,
+  logo: true,
+  description: true,
+  website: true,
+});
+
+export const insertFansubSourceSchema = createInsertSchema(fansubSources).pick({
+  fansubId: true,
+  animeId: true, 
+  episodeId: true,
+  videoUrl: true,
+  quality: true,
+});
+
+// Fansub tipleri
+export type Fansub = typeof fansubs.$inferSelect;
+export type InsertFansub = z.infer<typeof insertFansubSchema>;
+export type FansubSource = typeof fansubSources.$inferSelect;
+export type InsertFansubSource = z.infer<typeof insertFansubSourceSchema>;

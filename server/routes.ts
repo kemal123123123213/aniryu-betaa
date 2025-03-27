@@ -7,7 +7,8 @@ import { z } from "zod";
 import { 
   insertWatchHistorySchema, insertFavoriteSchema, 
   insertEpisodeCommentSchema, insertEpisodeReactionSchema,
-  insertEpisodePollSchema, insertPollOptionSchema, insertPollVoteSchema
+  insertEpisodePollSchema, insertPollOptionSchema, insertPollVoteSchema,
+  insertFansubSchema, insertFansubSourceSchema
 } from "@shared/schema";
 import { aiService } from "./services/ai-service";
 
@@ -1021,6 +1022,235 @@ export async function registerRoutes(app: Express): Promise<Server> {
   } catch (error) {
     console.error('WebSocket initialization error:', error);
   }
+
+  // Fansub API routes
+  // Tüm fansub gruplarını getir
+  app.get("/api/fansubs", async (req, res) => {
+    try {
+      const fansubs = await storage.getAllFansubs();
+      res.json(fansubs);
+    } catch (error) {
+      console.error("Fansub listesi getirme hatası:", error);
+      res.status(500).json({ message: "Fansub grupları getirilirken bir hata oluştu" });
+    }
+  });
+
+  // Belirli bir fansub grubunu getir
+  app.get("/api/fansubs/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Geçersiz fansub ID" });
+      }
+      
+      const fansub = await storage.getFansub(id);
+      if (!fansub) {
+        return res.status(404).json({ message: "Fansub grubu bulunamadı" });
+      }
+      
+      res.json(fansub);
+    } catch (error) {
+      console.error("Fansub detay hatası:", error);
+      res.status(500).json({ message: "Fansub detayları getirilirken bir hata oluştu" });
+    }
+  });
+
+  // Yeni fansub grubu ekle (sadece adminler)
+  app.post("/api/fansubs", isAdmin, async (req, res) => {
+    try {
+      const validation = insertFansubSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Geçersiz fansub verisi", 
+          errors: validation.error.errors 
+        });
+      }
+      
+      const fansub = await storage.createFansub({
+        ...req.body,
+      });
+      
+      res.status(201).json(fansub);
+    } catch (error) {
+      console.error("Fansub oluşturma hatası:", error);
+      res.status(500).json({ message: "Fansub oluşturulurken bir hata oluştu" });
+    }
+  });
+
+  // Fansub grubunu güncelle (sadece adminler)
+  app.put("/api/fansubs/:id", isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Geçersiz fansub ID" });
+      }
+      
+      const updatedFansub = await storage.updateFansub(id, req.body);
+      if (!updatedFansub) {
+        return res.status(404).json({ message: "Fansub grubu bulunamadı" });
+      }
+      
+      res.json(updatedFansub);
+    } catch (error) {
+      console.error("Fansub güncelleme hatası:", error);
+      res.status(500).json({ message: "Fansub güncellenirken bir hata oluştu" });
+    }
+  });
+
+  // Fansub grubunu sil (sadece adminler)
+  app.delete("/api/fansubs/:id", isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Geçersiz fansub ID" });
+      }
+      
+      const success = await storage.deleteFansub(id);
+      if (!success) {
+        return res.status(404).json({ message: "Fansub grubu bulunamadı veya silinemedi" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Fansub silme hatası:", error);
+      res.status(500).json({ message: "Fansub silinirken bir hata oluştu" });
+    }
+  });
+
+  // Fansub video kaynakları API rotaları
+  // Bir anime bölümü için tüm fansub kaynaklarını getir
+  app.get("/api/fansub-sources", async (req, res) => {
+    try {
+      const animeId = parseInt(req.query.animeId as string);
+      const episodeId = parseInt(req.query.episodeId as string);
+      
+      if (isNaN(animeId) || isNaN(episodeId)) {
+        return res.status(400).json({ 
+          message: "Geçersiz anime ID veya bölüm ID" 
+        });
+      }
+      
+      const sources = await storage.getFansubSources(animeId, episodeId);
+      res.json(sources);
+    } catch (error) {
+      console.error("Fansub kaynakları getirme hatası:", error);
+      res.status(500).json({ 
+        message: "Fansub kaynakları getirilirken bir hata oluştu" 
+      });
+    }
+  });
+  
+  // Anime bölümü için fansub kaynaklarını detayları ile birlikte getir
+  app.get("/api/fansub-sources-with-details", async (req, res) => {
+    try {
+      const animeId = parseInt(req.query.animeId as string);
+      const episodeId = parseInt(req.query.episodeId as string);
+      
+      if (isNaN(animeId) || isNaN(episodeId)) {
+        return res.status(400).json({ 
+          message: "Geçersiz anime ID veya bölüm ID" 
+        });
+      }
+      
+      const sourcesWithDetails = await storage.getFansubSourcesWithDetails(animeId, episodeId);
+      res.json(sourcesWithDetails);
+    } catch (error) {
+      console.error("Fansub kaynaklarını detaylarıyla getirme hatası:", error);
+      res.status(500).json({ 
+        message: "Fansub kaynakları detaylarıyla getirilirken bir hata oluştu" 
+      });
+    }
+  });
+
+  // Belirli bir fansub kaynağını getir
+  app.get("/api/fansub-sources/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Geçersiz kaynak ID" });
+      }
+      
+      const source = await storage.getFansubSource(id);
+      if (!source) {
+        return res.status(404).json({ message: "Fansub kaynağı bulunamadı" });
+      }
+      
+      res.json(source);
+    } catch (error) {
+      console.error("Fansub kaynak detay hatası:", error);
+      res.status(500).json({ 
+        message: "Fansub kaynak detayları getirilirken bir hata oluştu" 
+      });
+    }
+  });
+
+  // Yeni fansub kaynağı ekle (sadece adminler)
+  app.post("/api/fansub-sources", isAdmin, async (req, res) => {
+    try {
+      const validation = insertFansubSourceSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Geçersiz fansub kaynak verisi", 
+          errors: validation.error.errors 
+        });
+      }
+      
+      const source = await storage.createFansubSource({
+        ...req.body,
+      });
+      
+      res.status(201).json(source);
+    } catch (error) {
+      console.error("Fansub kaynak oluşturma hatası:", error);
+      res.status(500).json({ 
+        message: "Fansub kaynağı oluşturulurken bir hata oluştu" 
+      });
+    }
+  });
+
+  // Fansub kaynağını güncelle (sadece adminler)
+  app.put("/api/fansub-sources/:id", isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Geçersiz kaynak ID" });
+      }
+      
+      const updatedSource = await storage.updateFansubSource(id, req.body);
+      if (!updatedSource) {
+        return res.status(404).json({ message: "Fansub kaynağı bulunamadı" });
+      }
+      
+      res.json(updatedSource);
+    } catch (error) {
+      console.error("Fansub kaynak güncelleme hatası:", error);
+      res.status(500).json({ 
+        message: "Fansub kaynağı güncellenirken bir hata oluştu" 
+      });
+    }
+  });
+
+  // Fansub kaynağını sil (sadece adminler)
+  app.delete("/api/fansub-sources/:id", isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Geçersiz kaynak ID" });
+      }
+      
+      const success = await storage.deleteFansubSource(id);
+      if (!success) {
+        return res.status(404).json({ 
+          message: "Fansub kaynağı bulunamadı veya silinemedi" 
+        });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Fansub kaynak silme hatası:", error);
+      res.status(500).json({ message: "Fansub kaynağı silinirken bir hata oluştu" });
+    }
+  });
 
   return httpServer;
 }
