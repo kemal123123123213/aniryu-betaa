@@ -1,9 +1,22 @@
-import { users, watchHistory, favorites, userPreferences, userRecommendations, watchParties, watchPartyParticipants, messages } from "@shared/schema";
-import type { User, InsertUser, WatchHistory, InsertWatchHistory, Favorite, InsertFavorite, UserPreferences, InsertUserPreferences, WatchParty, InsertWatchParty } from "@shared/schema";
+import { 
+  users, watchHistory, favorites, userPreferences, userRecommendations, 
+  watchParties, watchPartyParticipants, messages,
+  episodeComments, episodeReactions, episodePolls, pollOptions, pollVotes
+} from "@shared/schema";
+import type { 
+  User, InsertUser, WatchHistory, InsertWatchHistory, 
+  Favorite, InsertFavorite, UserPreferences, InsertUserPreferences, 
+  WatchParty, InsertWatchParty,
+  EpisodeComment, InsertEpisodeComment,
+  EpisodeReaction, InsertEpisodeReaction,
+  EpisodePoll, InsertEpisodePoll,
+  PollOption, InsertPollOption,
+  PollVote, InsertPollVote
+} from "@shared/schema";
 import { randomBytes } from "crypto";
 import session from "express-session";
 import createMemoryStore from "memorystore";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, asc, isNull } from "drizzle-orm";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
 
@@ -47,6 +60,33 @@ export interface IStorage {
   // Recommendations methods
   getUserRecommendations(userId: number): Promise<number[]>;
   updateUserRecommendations(userId: number, animeIds: number[]): Promise<void>;
+  
+  // Episode comments methods
+  getEpisodeComments(animeId: number, episodeId: number): Promise<EpisodeComment[]>;
+  getCommentById(id: number): Promise<EpisodeComment | undefined>;
+  addComment(comment: InsertEpisodeComment): Promise<EpisodeComment>;
+  updateComment(id: number, comment: Partial<EpisodeComment>): Promise<EpisodeComment | undefined>;
+  deleteComment(id: number): Promise<boolean>;
+  getReplies(parentId: number): Promise<EpisodeComment[]>;
+  
+  // Episode reactions methods
+  getEpisodeReactions(animeId: number, episodeId: number): Promise<EpisodeReaction[]>;
+  addReaction(reaction: InsertEpisodeReaction): Promise<EpisodeReaction>;
+  
+  // Episode polls methods
+  getEpisodePolls(animeId: number, episodeId: number): Promise<EpisodePoll[]>;
+  getPollById(id: number): Promise<EpisodePoll | undefined>;
+  createPoll(poll: InsertEpisodePoll): Promise<EpisodePoll>;
+  updatePoll(id: number, poll: Partial<EpisodePoll>): Promise<EpisodePoll | undefined>;
+  
+  // Poll options methods
+  getPollOptions(pollId: number): Promise<PollOption[]>;
+  addPollOption(option: InsertPollOption): Promise<PollOption>;
+  
+  // Poll votes methods
+  getPollVotes(pollId: number): Promise<PollVote[]>;
+  getUserVote(pollId: number, userId: number): Promise<PollVote | undefined>;
+  addPollVote(vote: InsertPollVote): Promise<PollVote>;
   
   // Session store
   sessionStore: session.Store;
@@ -348,6 +388,196 @@ export class DatabaseStorage implements IStorage {
         .where(eq(userRecommendations.userId, userId));
     }
   }
+
+  // Episode comments methods
+  async getEpisodeComments(animeId: number, episodeId: number): Promise<EpisodeComment[]> {
+    // Ana yorumlar, yanıtlar değil
+    return db.select().from(episodeComments)
+      .where(and(
+        eq(episodeComments.animeId, animeId),
+        eq(episodeComments.episodeId, episodeId),
+        isNull(episodeComments.parentId),
+        eq(episodeComments.isDeleted, false)
+      ))
+      .orderBy(desc(episodeComments.createdAt));
+  }
+
+  async getCommentById(id: number): Promise<EpisodeComment | undefined> {
+    const result = await db.select().from(episodeComments)
+      .where(eq(episodeComments.id, id));
+    
+    return result[0];
+  }
+
+  async addComment(insertComment: InsertEpisodeComment): Promise<EpisodeComment> {
+    const result = await db.insert(episodeComments).values({
+      ...insertComment,
+      timestamp: insertComment.timestamp || null,
+      parentId: insertComment.parentId || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isDeleted: false,
+      likes: 0
+    }).returning();
+    
+    return result[0];
+  }
+
+  async updateComment(id: number, commentData: Partial<EpisodeComment>): Promise<EpisodeComment | undefined> {
+    // Sadece içerik ve silme durumunu güncellemeye izin ver
+    const validFields: Partial<EpisodeComment> = {
+      content: commentData.content,
+      isDeleted: commentData.isDeleted,
+      likes: commentData.likes,
+      updatedAt: new Date()
+    };
+
+    const result = await db.update(episodeComments)
+      .set(validFields)
+      .where(eq(episodeComments.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  async deleteComment(id: number): Promise<boolean> {
+    // Gerçek silme yerine soft delete
+    const result = await db.update(episodeComments)
+      .set({ 
+        isDeleted: true,
+        updatedAt: new Date() 
+      })
+      .where(eq(episodeComments.id, id))
+      .returning();
+    
+    return result.length > 0;
+  }
+
+  async getReplies(parentId: number): Promise<EpisodeComment[]> {
+    return db.select().from(episodeComments)
+      .where(and(
+        eq(episodeComments.parentId, parentId),
+        eq(episodeComments.isDeleted, false)
+      ))
+      .orderBy(asc(episodeComments.createdAt));
+  }
+
+  // Episode reactions methods
+  async getEpisodeReactions(animeId: number, episodeId: number): Promise<EpisodeReaction[]> {
+    return db.select().from(episodeReactions)
+      .where(and(
+        eq(episodeReactions.animeId, animeId),
+        eq(episodeReactions.episodeId, episodeId)
+      ))
+      .orderBy(asc(episodeReactions.timestamp));
+  }
+
+  async addReaction(insertReaction: InsertEpisodeReaction): Promise<EpisodeReaction> {
+    const result = await db.insert(episodeReactions).values({
+      ...insertReaction,
+      createdAt: new Date()
+    }).returning();
+    
+    return result[0];
+  }
+
+  // Episode polls methods
+  async getEpisodePolls(animeId: number, episodeId: number): Promise<EpisodePoll[]> {
+    return db.select().from(episodePolls)
+      .where(and(
+        eq(episodePolls.animeId, animeId),
+        eq(episodePolls.episodeId, episodeId)
+      ))
+      .orderBy(desc(episodePolls.createdAt));
+  }
+
+  async getPollById(id: number): Promise<EpisodePoll | undefined> {
+    const result = await db.select().from(episodePolls)
+      .where(eq(episodePolls.id, id));
+    
+    return result[0];
+  }
+
+  async createPoll(insertPoll: InsertEpisodePoll): Promise<EpisodePoll> {
+    const result = await db.insert(episodePolls).values({
+      ...insertPoll,
+      createdAt: new Date(),
+      endedAt: null,
+      isActive: insertPoll.isActive ?? true
+    }).returning();
+    
+    return result[0];
+  }
+
+  async updatePoll(id: number, pollData: Partial<EpisodePoll>): Promise<EpisodePoll | undefined> {
+    const validFields: Partial<EpisodePoll> = {
+      question: pollData.question,
+      endedAt: pollData.endedAt,
+      isActive: pollData.isActive
+    };
+
+    const result = await db.update(episodePolls)
+      .set(validFields)
+      .where(eq(episodePolls.id, id))
+      .returning();
+    
+    return result[0];
+  }
+
+  // Poll options methods
+  async getPollOptions(pollId: number): Promise<PollOption[]> {
+    return db.select().from(pollOptions)
+      .where(eq(pollOptions.pollId, pollId));
+  }
+
+  async addPollOption(insertOption: InsertPollOption): Promise<PollOption> {
+    const result = await db.insert(pollOptions).values({
+      ...insertOption,
+      imageUrl: insertOption.imageUrl || null
+    }).returning();
+    
+    return result[0];
+  }
+
+  // Poll votes methods
+  async getPollVotes(pollId: number): Promise<PollVote[]> {
+    return db.select().from(pollVotes)
+      .where(eq(pollVotes.pollId, pollId));
+  }
+
+  async getUserVote(pollId: number, userId: number): Promise<PollVote | undefined> {
+    const result = await db.select().from(pollVotes)
+      .where(and(
+        eq(pollVotes.pollId, pollId),
+        eq(pollVotes.userId, userId)
+      ));
+    
+    return result[0];
+  }
+
+  async addPollVote(insertVote: InsertPollVote): Promise<PollVote> {
+    // Mevcut oy var mı diye kontrol et
+    const existingVote = await this.getUserVote(insertVote.pollId, insertVote.userId);
+    
+    if (existingVote) {
+      // Aynı seçenek için oy verilmişse, mevcut oyu döndür
+      if (existingVote.optionId === insertVote.optionId) {
+        return existingVote;
+      }
+      
+      // Farklı seçenek için oy verilmişse, mevcut oyu sil
+      await db.delete(pollVotes)
+        .where(eq(pollVotes.id, existingVote.id));
+    }
+    
+    // Yeni oy ekle
+    const result = await db.insert(pollVotes).values({
+      ...insertVote,
+      votedAt: new Date()
+    }).returning();
+    
+    return result[0];
+  }
 }
 
 export class MemStorage implements IStorage {
@@ -371,6 +601,12 @@ export class MemStorage implements IStorage {
     this.watchParties = new Map();
     this.partyParticipants = new Map();
     this.messages = new Map();
+    this.episodeComments = new Map();
+    this.episodeReactions = new Map();
+    this.episodePolls = new Map();
+    this.pollOptions = new Map();
+    this.pollVotes = new Map();
+    
     this.currentId = {
       users: 1,
       watchHistories: 1,
@@ -378,8 +614,14 @@ export class MemStorage implements IStorage {
       userPreferences: 1,
       watchParties: 1,
       partyParticipants: 1,
-      messages: 1
+      messages: 1,
+      comments: 1,
+      reactions: 1,
+      polls: 1,
+      pollOptions: 1,
+      pollVotes: 1
     };
+    
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000 // 24 hours
     });
@@ -624,6 +866,220 @@ export class MemStorage implements IStorage {
 
   async updateUserRecommendations(userId: number, animeIds: number[]): Promise<void> {
     this.recommendations.set(userId, animeIds);
+  }
+
+  // Etkileşimli özellikler için Map'ler
+  private episodeComments: Map<number, EpisodeComment> = new Map();
+  private episodeReactions: Map<number, EpisodeReaction> = new Map();
+  private episodePolls: Map<number, EpisodePoll> = new Map();
+  private pollOptions: Map<number, PollOption> = new Map();
+  private pollVotes: Map<number, PollVote> = new Map();
+  
+  // Episode comments methods
+  async getEpisodeComments(animeId: number, episodeId: number): Promise<EpisodeComment[]> {
+    return Array.from(this.episodeComments.values())
+      .filter(comment => 
+        comment.animeId === animeId && 
+        comment.episodeId === episodeId && 
+        !comment.parentId && 
+        !comment.isDeleted
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getCommentById(id: number): Promise<EpisodeComment | undefined> {
+    return this.episodeComments.get(id);
+  }
+
+  async addComment(insertComment: InsertEpisodeComment): Promise<EpisodeComment> {
+    const id = this.currentId.comments || (this.currentId.comments = 1);
+    this.currentId.comments++;
+
+    const comment: EpisodeComment = {
+      id,
+      ...insertComment,
+      timestamp: insertComment.timestamp || null,
+      parentId: insertComment.parentId || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isDeleted: false,
+      likes: 0
+    };
+
+    this.episodeComments.set(id, comment);
+    return comment;
+  }
+
+  async updateComment(id: number, commentData: Partial<EpisodeComment>): Promise<EpisodeComment | undefined> {
+    const comment = this.episodeComments.get(id);
+    if (!comment) return undefined;
+
+    const updatedComment: EpisodeComment = {
+      ...comment,
+      content: commentData.content || comment.content,
+      isDeleted: commentData.isDeleted ?? comment.isDeleted,
+      likes: commentData.likes ?? comment.likes,
+      updatedAt: new Date()
+    };
+
+    this.episodeComments.set(id, updatedComment);
+    return updatedComment;
+  }
+
+  async deleteComment(id: number): Promise<boolean> {
+    const comment = this.episodeComments.get(id);
+    if (!comment) return false;
+
+    const updatedComment: EpisodeComment = {
+      ...comment,
+      isDeleted: true,
+      updatedAt: new Date()
+    };
+
+    this.episodeComments.set(id, updatedComment);
+    return true;
+  }
+
+  async getReplies(parentId: number): Promise<EpisodeComment[]> {
+    return Array.from(this.episodeComments.values())
+      .filter(comment => 
+        comment.parentId === parentId && 
+        !comment.isDeleted
+      )
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  // Episode reactions methods
+  async getEpisodeReactions(animeId: number, episodeId: number): Promise<EpisodeReaction[]> {
+    return Array.from(this.episodeReactions.values())
+      .filter(reaction => 
+        reaction.animeId === animeId && 
+        reaction.episodeId === episodeId
+      )
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }
+
+  async addReaction(insertReaction: InsertEpisodeReaction): Promise<EpisodeReaction> {
+    const id = this.currentId.reactions || (this.currentId.reactions = 1);
+    this.currentId.reactions++;
+
+    const reaction: EpisodeReaction = {
+      id,
+      ...insertReaction,
+      createdAt: new Date()
+    };
+
+    this.episodeReactions.set(id, reaction);
+    return reaction;
+  }
+
+  // Episode polls methods
+  async getEpisodePolls(animeId: number, episodeId: number): Promise<EpisodePoll[]> {
+    return Array.from(this.episodePolls.values())
+      .filter(poll => 
+        poll.animeId === animeId && 
+        poll.episodeId === episodeId
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getPollById(id: number): Promise<EpisodePoll | undefined> {
+    return this.episodePolls.get(id);
+  }
+
+  async createPoll(insertPoll: InsertEpisodePoll): Promise<EpisodePoll> {
+    const id = this.currentId.polls || (this.currentId.polls = 1);
+    this.currentId.polls++;
+
+    const poll: EpisodePoll = {
+      id,
+      animeId: insertPoll.animeId,
+      episodeId: insertPoll.episodeId,
+      question: insertPoll.question,
+      createdBy: insertPoll.createdBy || null,
+      createdAt: new Date(),
+      endedAt: null,
+      isActive: insertPoll.isActive ?? true
+    };
+
+    this.episodePolls.set(id, poll);
+    return poll;
+  }
+
+  async updatePoll(id: number, pollData: Partial<EpisodePoll>): Promise<EpisodePoll | undefined> {
+    const poll = this.episodePolls.get(id);
+    if (!poll) return undefined;
+
+    const updatedPoll: EpisodePoll = {
+      ...poll,
+      animeId: pollData.animeId ?? poll.animeId,
+      episodeId: pollData.episodeId ?? poll.episodeId,
+      question: pollData.question ?? poll.question,
+      createdBy: pollData.createdBy ?? poll.createdBy,
+      createdAt: poll.createdAt,
+      endedAt: pollData.endedAt ?? poll.endedAt,
+      isActive: pollData.isActive ?? poll.isActive
+    };
+
+    this.episodePolls.set(id, updatedPoll);
+    return updatedPoll;
+  }
+
+  // Poll options methods
+  async getPollOptions(pollId: number): Promise<PollOption[]> {
+    return Array.from(this.pollOptions.values())
+      .filter(option => option.pollId === pollId);
+  }
+
+  async addPollOption(insertOption: InsertPollOption): Promise<PollOption> {
+    const id = this.currentId.pollOptions || (this.currentId.pollOptions = 1);
+    this.currentId.pollOptions++;
+
+    const option: PollOption = {
+      id,
+      ...insertOption,
+      imageUrl: insertOption.imageUrl || null
+    };
+
+    this.pollOptions.set(id, option);
+    return option;
+  }
+
+  // Poll votes methods
+  async getPollVotes(pollId: number): Promise<PollVote[]> {
+    return Array.from(this.pollVotes.values())
+      .filter(vote => vote.pollId === pollId);
+  }
+
+  async getUserVote(pollId: number, userId: number): Promise<PollVote | undefined> {
+    return Array.from(this.pollVotes.values())
+      .find(vote => vote.pollId === pollId && vote.userId === userId);
+  }
+
+  async addPollVote(insertVote: InsertPollVote): Promise<PollVote> {
+    // Kullanıcının mevcut oyunu kontrol et
+    const existingVote = await this.getUserVote(insertVote.pollId, insertVote.userId);
+    
+    if (existingVote) {
+      if (existingVote.optionId === insertVote.optionId) {
+        return existingVote;
+      }
+      
+      // Farklı seçenek için oy verilmişse eski oyu sil
+      this.pollVotes.delete(existingVote.id);
+    }
+    
+    const id = this.currentId.pollVotes || (this.currentId.pollVotes = 1);
+    this.currentId.pollVotes++;
+    
+    const vote: PollVote = {
+      id,
+      ...insertVote,
+      votedAt: new Date()
+    };
+    
+    this.pollVotes.set(id, vote);
+    return vote;
   }
 }
 

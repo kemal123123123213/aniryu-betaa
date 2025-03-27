@@ -4,7 +4,11 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
-import { insertWatchHistorySchema, insertFavoriteSchema } from "@shared/schema";
+import { 
+  insertWatchHistorySchema, insertFavoriteSchema, 
+  insertEpisodeCommentSchema, insertEpisodeReactionSchema,
+  insertEpisodePollSchema, insertPollOptionSchema, insertPollVoteSchema
+} from "@shared/schema";
 
 function isAuthenticated(req: any, res: any, next: any) {
   if (req.isAuthenticated()) {
@@ -206,6 +210,295 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const recommendations = await storage.getUserRecommendations(userId);
     res.json({ animeIds: recommendations });
   });
+  
+  // Episode Comments API
+  app.get("/api/anime/:animeId/episode/:episodeId/comments", async (req, res) => {
+    try {
+      const animeId = parseInt(req.params.animeId);
+      const episodeId = parseInt(req.params.episodeId);
+      
+      if (isNaN(animeId) || isNaN(episodeId)) {
+        return res.status(400).json({ message: "Geçersiz anime veya bölüm ID" });
+      }
+      
+      const comments = await storage.getEpisodeComments(animeId, episodeId);
+      res.json(comments);
+    } catch (error) {
+      res.status(500).json({ message: "Yorumlar alınırken bir hata oluştu" });
+    }
+  });
+  
+  app.post("/api/comments", isAuthenticated, async (req, res) => {
+    try {
+      const validation = insertEpisodeCommentSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Geçersiz yorum verisi", errors: validation.error.errors });
+      }
+      
+      const userId = req.user!.id;
+      const comment = await storage.addComment({
+        ...req.body,
+        userId
+      });
+      
+      res.status(201).json(comment);
+    } catch (error) {
+      res.status(500).json({ message: "Yorum eklenirken bir hata oluştu" });
+    }
+  });
+  
+  app.get("/api/comments/:id/replies", async (req, res) => {
+    try {
+      const commentId = parseInt(req.params.id);
+      if (isNaN(commentId)) {
+        return res.status(400).json({ message: "Geçersiz yorum ID" });
+      }
+      
+      const replies = await storage.getReplies(commentId);
+      res.json(replies);
+    } catch (error) {
+      res.status(500).json({ message: "Yanıtlar alınırken bir hata oluştu" });
+    }
+  });
+  
+  app.put("/api/comments/:id", isAuthenticated, async (req, res) => {
+    try {
+      const commentId = parseInt(req.params.id);
+      if (isNaN(commentId)) {
+        return res.status(400).json({ message: "Geçersiz yorum ID" });
+      }
+      
+      // Yorum sahibinin doğrulanması
+      const comment = await storage.getCommentById(commentId);
+      if (!comment) {
+        return res.status(404).json({ message: "Yorum bulunamadı" });
+      }
+      
+      if (comment.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Bu yorumu düzenleme yetkiniz yok" });
+      }
+      
+      const updatedComment = await storage.updateComment(commentId, req.body);
+      res.json(updatedComment);
+    } catch (error) {
+      res.status(500).json({ message: "Yorum güncellenirken bir hata oluştu" });
+    }
+  });
+  
+  app.delete("/api/comments/:id", isAuthenticated, async (req, res) => {
+    try {
+      const commentId = parseInt(req.params.id);
+      if (isNaN(commentId)) {
+        return res.status(400).json({ message: "Geçersiz yorum ID" });
+      }
+      
+      // Yorum sahibinin doğrulanması
+      const comment = await storage.getCommentById(commentId);
+      if (!comment) {
+        return res.status(404).json({ message: "Yorum bulunamadı" });
+      }
+      
+      if (comment.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Bu yorumu silme yetkiniz yok" });
+      }
+      
+      const success = await storage.deleteComment(commentId);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(500).json({ message: "Yorum silinemedi" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Yorum silinirken bir hata oluştu" });
+    }
+  });
+  
+  // Episode Reactions API
+  app.get("/api/anime/:animeId/episode/:episodeId/reactions", async (req, res) => {
+    try {
+      const animeId = parseInt(req.params.animeId);
+      const episodeId = parseInt(req.params.episodeId);
+      
+      if (isNaN(animeId) || isNaN(episodeId)) {
+        return res.status(400).json({ message: "Geçersiz anime veya bölüm ID" });
+      }
+      
+      const reactions = await storage.getEpisodeReactions(animeId, episodeId);
+      res.json(reactions);
+    } catch (error) {
+      res.status(500).json({ message: "Reaksiyonlar alınırken bir hata oluştu" });
+    }
+  });
+  
+  app.post("/api/reactions", isAuthenticated, async (req, res) => {
+    try {
+      const validation = insertEpisodeReactionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Geçersiz reaksiyon verisi", errors: validation.error.errors });
+      }
+      
+      const userId = req.user!.id;
+      const reaction = await storage.addReaction({
+        ...req.body,
+        userId
+      });
+      
+      res.status(201).json(reaction);
+    } catch (error) {
+      res.status(500).json({ message: "Reaksiyon eklenirken bir hata oluştu" });
+    }
+  });
+  
+  // Episode Polls API
+  app.get("/api/anime/:animeId/episode/:episodeId/polls", async (req, res) => {
+    try {
+      const animeId = parseInt(req.params.animeId);
+      const episodeId = parseInt(req.params.episodeId);
+      
+      if (isNaN(animeId) || isNaN(episodeId)) {
+        return res.status(400).json({ message: "Geçersiz anime veya bölüm ID" });
+      }
+      
+      const polls = await storage.getEpisodePolls(animeId, episodeId);
+      res.json(polls);
+    } catch (error) {
+      res.status(500).json({ message: "Anketler alınırken bir hata oluştu" });
+    }
+  });
+  
+  app.post("/api/polls", isAuthenticated, async (req, res) => {
+    try {
+      const validation = insertEpisodePollSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Geçersiz anket verisi", errors: validation.error.errors });
+      }
+      
+      const userId = req.user!.id;
+      const poll = await storage.createPoll({
+        ...req.body,
+        createdBy: userId
+      });
+      
+      res.status(201).json(poll);
+    } catch (error) {
+      res.status(500).json({ message: "Anket oluşturulurken bir hata oluştu" });
+    }
+  });
+  
+  app.get("/api/polls/:id", async (req, res) => {
+    try {
+      const pollId = parseInt(req.params.id);
+      if (isNaN(pollId)) {
+        return res.status(400).json({ message: "Geçersiz anket ID" });
+      }
+      
+      const poll = await storage.getPollById(pollId);
+      if (!poll) {
+        return res.status(404).json({ message: "Anket bulunamadı" });
+      }
+      
+      res.json(poll);
+    } catch (error) {
+      res.status(500).json({ message: "Anket alınırken bir hata oluştu" });
+    }
+  });
+  
+  app.put("/api/polls/:id", isAuthenticated, async (req, res) => {
+    try {
+      const pollId = parseInt(req.params.id);
+      if (isNaN(pollId)) {
+        return res.status(400).json({ message: "Geçersiz anket ID" });
+      }
+      
+      // Anket sahibinin doğrulanması
+      const poll = await storage.getPollById(pollId);
+      if (!poll) {
+        return res.status(404).json({ message: "Anket bulunamadı" });
+      }
+      
+      if (poll.createdBy !== req.user!.id) {
+        return res.status(403).json({ message: "Bu anketi düzenleme yetkiniz yok" });
+      }
+      
+      const updatedPoll = await storage.updatePoll(pollId, req.body);
+      res.json(updatedPoll);
+    } catch (error) {
+      res.status(500).json({ message: "Anket güncellenirken bir hata oluştu" });
+    }
+  });
+  
+  // Poll Options API
+  app.get("/api/polls/:id/options", async (req, res) => {
+    try {
+      const pollId = parseInt(req.params.id);
+      if (isNaN(pollId)) {
+        return res.status(400).json({ message: "Geçersiz anket ID" });
+      }
+      
+      const options = await storage.getPollOptions(pollId);
+      res.json(options);
+    } catch (error) {
+      res.status(500).json({ message: "Anket seçenekleri alınırken bir hata oluştu" });
+    }
+  });
+  
+  app.post("/api/poll-options", isAuthenticated, async (req, res) => {
+    try {
+      const validation = insertPollOptionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Geçersiz seçenek verisi", errors: validation.error.errors });
+      }
+      
+      // Anket sahibinin doğrulanması
+      const poll = await storage.getPollById(req.body.pollId);
+      if (!poll) {
+        return res.status(404).json({ message: "Anket bulunamadı" });
+      }
+      
+      if (poll.createdBy !== req.user!.id) {
+        return res.status(403).json({ message: "Bu ankete seçenek ekleme yetkiniz yok" });
+      }
+      
+      const option = await storage.addPollOption(req.body);
+      res.status(201).json(option);
+    } catch (error) {
+      res.status(500).json({ message: "Seçenek eklenirken bir hata oluştu" });
+    }
+  });
+  
+  // Poll Votes API
+  app.get("/api/polls/:id/votes", async (req, res) => {
+    try {
+      const pollId = parseInt(req.params.id);
+      if (isNaN(pollId)) {
+        return res.status(400).json({ message: "Geçersiz anket ID" });
+      }
+      
+      const votes = await storage.getPollVotes(pollId);
+      res.json(votes);
+    } catch (error) {
+      res.status(500).json({ message: "Anket oyları alınırken bir hata oluştu" });
+    }
+  });
+  
+  app.post("/api/poll-votes", isAuthenticated, async (req, res) => {
+    try {
+      const validation = insertPollVoteSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ message: "Geçersiz oy verisi", errors: validation.error.errors });
+      }
+      
+      const userId = req.user!.id;
+      const vote = await storage.addPollVote({
+        ...req.body,
+        userId
+      });
+      
+      res.status(201).json(vote);
+    } catch (error) {
+      res.status(500).json({ message: "Oy verilirken bir hata oluştu" });
+    }
+  });
 
   // WebSockets for watch party - with improved error handling
   try {
@@ -275,6 +568,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   userId,
                   content,
                   timestamp: new Date().toISOString()
+                }));
+              }
+            });
+          }
+          // Etkileşimli özellikler için WebSocket mesajları
+          else if (message.type === 'reaction') {
+            // Yeni reaksiyon ekle ve tüm görüntüleyenlere yayınla
+            const { animeId, episodeId, userId, reaction, timestamp } = message;
+            
+            const storedReaction = await storage.addReaction({
+              userId,
+              animeId,
+              episodeId,
+              reaction,
+              timestamp
+            });
+            
+            // Aynı bölümü izleyen herkese yayınla
+            wss.clients.forEach((client) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'new_reaction',
+                  reaction: storedReaction
+                }));
+              }
+            });
+          }
+          else if (message.type === 'comment') {
+            // Yeni yorum ekle ve tüm görüntüleyenlere yayınla
+            const { animeId, episodeId, userId, content, timestamp, parentId } = message;
+            
+            const comment = await storage.addComment({
+              userId,
+              animeId,
+              episodeId,
+              content,
+              timestamp,
+              parentId: parentId || null
+            });
+            
+            // Aynı bölümü izleyen herkese yayınla
+            wss.clients.forEach((client) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'new_comment',
+                  comment
+                }));
+              }
+            });
+          }
+          else if (message.type === 'poll_vote') {
+            // Kullanıcının ankete oyunu kaydet ve güncel oy durumunu tüm kullanıcılara yayınla
+            const { pollId, optionId, userId } = message;
+            
+            await storage.addPollVote({
+              pollId,
+              optionId,
+              userId
+            });
+            
+            // Güncel oy sonuçlarını getir
+            const votes = await storage.getPollVotes(pollId);
+            const options = await storage.getPollOptions(pollId);
+            
+            // Oy sonuçlarını hesapla
+            const results = options.map(option => {
+              const optionVotes = votes.filter(vote => vote.optionId === option.id).length;
+              return {
+                optionId: option.id,
+                text: option.text,
+                count: optionVotes
+              };
+            });
+            
+            // Aynı bölümü izleyen herkese yayınla
+            wss.clients.forEach((client) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'poll_results',
+                  pollId,
+                  results
                 }));
               }
             });

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -72,6 +72,61 @@ export const messages = pgTable("messages", {
   sentAt: timestamp("sent_at").defaultNow().notNull(),
 });
 
+// Etkileşimli anime izleme özellikleri için tablolar
+export const episodeComments = pgTable("episode_comments", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  animeId: integer("anime_id").notNull(),
+  episodeId: integer("episode_id").notNull(),
+  content: text("content").notNull(),
+  timestamp: integer("timestamp"), // İsteğe bağlı, belirli bir video anındaki yorum için
+  parentId: integer("parent_id"), // Yoruma yanıt için, daha sonra ilişki kurulacak
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  isDeleted: boolean("is_deleted").default(false),
+  likes: integer("likes").default(0),
+});
+
+// Video esnasında hızlı reaksiyonlar
+export const episodeReactions = pgTable("episode_reactions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  animeId: integer("anime_id").notNull(),
+  episodeId: integer("episode_id").notNull(),
+  reaction: varchar("reaction", { length: 50 }).notNull(), // Emoji veya reaksiyon tipi
+  timestamp: integer("timestamp").notNull(), // Videonun kaçıncı saniyesinde reaksiyon verildi
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Bölüm sonlarında gösterilen anketler
+export const episodePolls = pgTable("episode_polls", {
+  id: serial("id").primaryKey(),
+  animeId: integer("anime_id").notNull(),
+  episodeId: integer("episode_id").notNull(),
+  question: text("question").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  endedAt: timestamp("ended_at"), // Anket sona erdi mi?
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").references(() => users.id), // Admin veya moderatör
+});
+
+// Anket seçenekleri
+export const pollOptions = pgTable("poll_options", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").notNull().references(() => episodePolls.id),
+  text: text("text").notNull(),
+  imageUrl: text("image_url"), // İsteğe bağlı görsel
+});
+
+// Anket oyları
+export const pollVotes = pgTable("poll_votes", {
+  id: serial("id").primaryKey(), 
+  pollId: integer("poll_id").notNull().references(() => episodePolls.id),
+  optionId: integer("option_id").notNull().references(() => pollOptions.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  votedAt: timestamp("voted_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -109,6 +164,44 @@ export const insertWatchPartySchema = createInsertSchema(watchParties).pick({
   roomCode: true,
 });
 
+// Etkileşimli özellikler için şemalar
+export const insertEpisodeCommentSchema = createInsertSchema(episodeComments).pick({
+  userId: true,
+  animeId: true,
+  episodeId: true,
+  content: true,
+  timestamp: true,
+  parentId: true,
+});
+
+export const insertEpisodeReactionSchema = createInsertSchema(episodeReactions).pick({
+  userId: true,
+  animeId: true,
+  episodeId: true,
+  reaction: true,
+  timestamp: true,
+});
+
+export const insertEpisodePollSchema = createInsertSchema(episodePolls).pick({
+  animeId: true,
+  episodeId: true,
+  question: true,
+  isActive: true,
+  createdBy: true,
+});
+
+export const insertPollOptionSchema = createInsertSchema(pollOptions).pick({
+  pollId: true,
+  text: true,
+  imageUrl: true,
+});
+
+export const insertPollVoteSchema = createInsertSchema(pollVotes).pick({
+  pollId: true,
+  optionId: true,
+  userId: true,
+});
+
 export const loginSchema = z.object({
   username: z.string().min(3, { message: "Kullanıcı adı en az 3 karakter olmalıdır." }),
   password: z.string().min(6, { message: "Şifre en az 6 karakter olmalıdır." }),
@@ -125,4 +218,17 @@ export type UserPreferences = typeof userPreferences.$inferSelect;
 export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
 export type WatchParty = typeof watchParties.$inferSelect;
 export type InsertWatchParty = z.infer<typeof insertWatchPartySchema>;
+
+// Etkileşimli özellikler için tipler
+export type EpisodeComment = typeof episodeComments.$inferSelect;
+export type InsertEpisodeComment = z.infer<typeof insertEpisodeCommentSchema>;
+export type EpisodeReaction = typeof episodeReactions.$inferSelect;
+export type InsertEpisodeReaction = z.infer<typeof insertEpisodeReactionSchema>;
+export type EpisodePoll = typeof episodePolls.$inferSelect;
+export type InsertEpisodePoll = z.infer<typeof insertEpisodePollSchema>;
+export type PollOption = typeof pollOptions.$inferSelect;
+export type InsertPollOption = z.infer<typeof insertPollOptionSchema>;
+export type PollVote = typeof pollVotes.$inferSelect;
+export type InsertPollVote = z.infer<typeof insertPollVoteSchema>;
+
 export type LoginCredentials = z.infer<typeof loginSchema>;
