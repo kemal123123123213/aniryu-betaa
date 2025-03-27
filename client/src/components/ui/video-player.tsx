@@ -194,27 +194,35 @@ export function VideoPlayer({
   
   // Get watch history to resume from last position using progress sync
   const { data: watchHistory, isLoading: historyLoading } = useQuery({
-    queryKey: ['/api/watch-history', animeId, episodeId],
+    queryKey: ['/api/watch-history', animeId, episodeId, user?.id || '1'],
     queryFn: async () => {
-      const response = await fetch(`/api/watch-history?animeId=${animeId}&episodeId=${episodeId}`);
+      const userId = user?.id || '1';
+      const response = await fetch(`/api/watch-history?animeId=${animeId}&episodeId=${episodeId}&userId=${userId}`);
       if (!response.ok) return null;
       return response.json();
-    },
-    enabled: !!user,
+    }
   });
 
   // Update watch history
   const updateWatchHistoryMutation = useMutation({
     mutationFn: async (data: { progress: number }) => {
-      await apiRequest("POST", "/api/watch-history", {
-        animeId,
-        episodeId,
-        progress: Math.floor(data.progress),
-        duration
+      const userId = user?.id;
+      await fetch("/api/watch-history", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          animeId,
+          episodeId,
+          progress: Math.floor(data.progress),
+          duration,
+          userId
+        })
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/watch-history'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/watch-history', animeId, episodeId, user?.id || '1'] });
       // After updating watch history, sync progress across devices
       sync();
     },
@@ -282,7 +290,7 @@ export function VideoPlayer({
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    if (playing && user) {
+    if (playing) {
       interval = setInterval(() => {
         const currentTime = playerRef.current?.getCurrentTime() || 0;
         updateWatchHistoryMutation.mutate({ progress: currentTime });
@@ -292,7 +300,7 @@ export function VideoPlayer({
     return () => {
       clearInterval(interval);
     };
-  }, [playing, user, updateWatchHistoryMutation]);
+  }, [playing, updateWatchHistoryMutation]);
 
   // Handle fullscreen
   const toggleFullscreen = () => {

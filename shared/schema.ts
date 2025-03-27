@@ -139,13 +139,13 @@ export const insertUserSchema = createInsertSchema(users).pick({
 });
 
 export const insertWatchHistorySchema = createInsertSchema(watchHistory).pick({
-  userId: true,
   animeId: true,
   episodeId: true,
   progress: true,
   duration: true,
   completed: true,
 }).extend({
+  userId: z.number().optional(),
   episodeId: z.number().optional(),
   completed: z.boolean().optional().default(false)
 });
@@ -185,11 +185,13 @@ export const insertEpisodeCommentSchema = createInsertSchema(episodeComments).pi
 });
 
 export const insertEpisodeReactionSchema = createInsertSchema(episodeReactions).pick({
-  userId: true,
   animeId: true,
   episodeId: true,
   reaction: true,
   timestamp: true,
+}).extend({
+  userId: z.number().optional(),
+  timestamp: z.number().optional()
 });
 
 export const insertEpisodePollSchema = createInsertSchema(episodePolls).pick({

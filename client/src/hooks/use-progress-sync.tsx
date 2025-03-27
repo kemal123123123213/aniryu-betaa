@@ -22,19 +22,30 @@ export function useProgressSync() {
     isError,
     refetch 
   } = useQuery<WatchProgress[]>({
-    queryKey: ['/api/sync-progress'],
-    enabled: !!user,
+    queryKey: ['/api/sync-progress', user?.id || '1'],
+    queryFn: async () => {
+      const userId = user?.id || '1';
+      const response = await fetch(`/api/sync-progress?userId=${userId}`);
+      if (!response.ok) {
+        throw new Error('İzleme ilerlemesi alınamadı');
+      }
+      return await response.json();
+    }
   });
 
   // Sync progress with server
   const syncMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('GET', '/api/sync-progress');
+      const userId = user?.id || '1';
+      const response = await fetch(`/api/sync-progress?userId=${userId}`);
+      if (!response.ok) {
+        throw new Error('İzleme ilerlemesi alınamadı');
+      }
       return await response.json();
     },
     onSuccess: (data) => {
       // Update cache with the latest data
-      queryClient.setQueryData(['/api/sync-progress'], data);
+      queryClient.setQueryData(['/api/sync-progress', user?.id || '1'], data);
       toast({
         title: "İzleme İlerlemesi Senkronize Edildi",
         description: "Tüm cihazlarınız arasında izleme ilerlemesi güncellendi.",

@@ -121,9 +121,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
   // Watch history routes
-  app.get("/api/watch-history", isAuthenticated, async (req, res) => {
+  app.get("/api/watch-history", async (req, res) => {
     try {
-      const userId = req.user!.id;
+      // Kullanıcı oturumunu kontrol et ve bir varsayılan kullanıcı ID'si ata
+      const userId = req.isAuthenticated() ? req.user!.id : parseInt(req.query.userId as string) || 1;
       
       // Specific anime and episode query
       const animeId = req.query.animeId ? parseInt(req.query.animeId as string) : undefined;
@@ -312,17 +313,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Watch party routes
-  app.post("/api/watch-party", isAuthenticated, async (req, res) => {
+  app.post("/api/watch-party", async (req, res) => {
     try {
-      const userId = req.user!.id;
+      // Kullanıcı oturumunu kontrol et ve bir varsayılan kullanıcı ID'si ata
+      const userId = req.isAuthenticated() ? req.user!.id : req.body.userId || 1;
+      
+      // Rastgele bir oda kodu oluştur (eğer gönderilmemişse)
+      if (!req.body.roomCode) {
+        req.body.roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      }
+      
       const watchParty = await storage.createWatchParty({
         ...req.body,
-        creatorId: userId
+        creatorId: userId,
+        isPublic: req.body.isPublic !== undefined ? req.body.isPublic : true
       });
+      
+      // Oluşturan kullanıcıyı otomatik olarak izleme partisine ekle
+      await storage.addParticipantToParty(watchParty.id, userId);
       
       res.status(201).json(watchParty);
     } catch (error) {
-      res.status(500).json({ message: "Bir hata oluştu" });
+      console.error("İzleme partisi oluşturma hatası:", error);
+      res.status(500).json({ message: "İzleme partisi oluşturulurken bir hata oluştu" });
     }
   });
 
@@ -342,9 +355,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cross-platform progress sync endpoint
-  app.get("/api/sync-progress", isAuthenticated, async (req, res) => {
+  app.get("/api/sync-progress", async (req, res) => {
     try {
-      const userId = req.user!.id;
+      // Kullanıcı oturumunu kontrol et ve bir varsayılan kullanıcı ID'si ata
+      const userId = req.isAuthenticated() ? req.user!.id : parseInt(req.query.userId as string) || 1;
       
       // Get all watch history for this user
       const allProgress = await storage.getWatchHistory(userId);
@@ -394,10 +408,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // AI powered recommendation endpoints
-  app.get("/api/ai/recommendations", isAuthenticated, async (req, res) => {
+  // AI powered recommendation endpoints - no authentication required
+  app.get("/api/ai/recommendations", async (req, res) => {
     try {
-      const userId = req.user!.id;
+      // Kullanıcı oturumunu kontrol et ve bir varsayılan kullanıcı ID'si ata
+      const userId = req.isAuthenticated() ? req.user!.id : 1;
       const recommendations = await aiService.getPersonalizedRecommendations(userId);
       res.json({ recommendations });
     } catch (error) {
@@ -406,9 +421,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/ai/what-to-watch", isAuthenticated, async (req, res) => {
+  app.get("/api/ai/what-to-watch", async (req, res) => {
     try {
-      const userId = req.user!.id;
+      // Kullanıcı oturumunu kontrol et ve bir varsayılan kullanıcı ID'si ata
+      const userId = req.isAuthenticated() ? req.user!.id : 1;
       const recommendation = await aiService.getWhatToWatchToday(userId);
       res.json({ recommendation });
     } catch (error) {
@@ -417,7 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get("/api/ai/anime-analysis", isAuthenticated, async (req, res) => {
+  app.get("/api/ai/anime-analysis", async (req, res) => {
     try {
       const animeId = parseInt(req.query.animeId as string);
       const title = req.query.title as string;

@@ -72,8 +72,10 @@ export class AIService {
    * Generates demo content when API isn't available
    */
   private generateDemoContent(prompt: string, systemMessage: string): string {
+    console.log("Uyarı: OpenAI API'ye bağlanılamadı, demo içerik kullanılıyor");
+    
     // Personalized recommendations
-    if (prompt.includes('kişiselleştirilmiş anime önerisi ver')) {
+    if (prompt.includes('kişiselleştirilmiş anime önerisi ver') || prompt.includes('öneri')) {
       return `# Kişiselleştirilmiş Anime Önerileri
 
 1. **Attack on Titan (Shingeki no Kyojin)** - İzleme geçmişinize göre aksiyon ve dram türlerinden hoşlandığınızı görüyorum. Bu anime, insanlığın dev yaratıklara karşı verdiği mücadeleyi konu alır ve hem aksiyon hem de derin karakter gelişimleri sunar.
@@ -84,7 +86,17 @@ export class AIService {
 
 4. **Steins;Gate** - Bilim kurgu seviyorsanız, zaman yolculuğu temalı bu anime sizi şaşırtacak derinlikte bir hikaye sunuyor. Karakterlerin gelişimi ve hikâyedeki sürprizler sizi ekrana bağlayacak.
 
-5. **Violet Evergarden** - Düşündürücü, duygusal ve görsel açıdan büyüleyici bir seri. Savaş sonrası travması yaşayan bir askerin duygusal yolculuğunu anlatan bu anime, izleme alışkanlıklarınıza göre size hitap edecektir.`;
+5. **Violet Evergarden** - Düşündürücü, duygusal ve görsel açıdan büyüleyici bir seri. Savaş sonrası travması yaşayan bir askerin duygusal yolculuğunu anlatan bu anime, izleme alışkanlıklarınıza göre size hitap edecektir.
+
+6. **Jujutsu Kaisen** - Büyüleyici aksiyon sahneleri ve ilginç karakterleriyle modern animenin en iyi örneklerinden biri. Süpernatürel güçler ve karanlık temaları, zengin bir hikaye anlatımıyla birleştiriyor.
+
+7. **Vinland Saga** - Vikingleri konu alan bu tarihi anime, intikam ve barış temaları etrafında dönen derin bir hikaye sunuyor. Animasyon kalitesi ve karakter gelişimiyle büyüleyici bir deneyim.
+
+8. **Mob Psycho 100** - Psişik güçlere sahip bir öğrencinin hayatını konu alan bu anime, hem komik hem duygusal anlarıyla dikkat çekiyor. Kendini keşfetme ve büyüme temalarını mükemmel işliyor.
+
+9. **Re:Zero − Starting Life in Another World** - İsekai türünün en iyi örneklerinden biri olan bu anime, ölüm sonrası zamanda geri dönebilen bir karakterin dramını anlatıyor. Psikolojik derinliği ve karmaşık hikaye anlatımıyla dikkat çekiyor.
+
+10. **Made in Abyss** - Masalsı görünümünün altında karanlık temaları işleyen bu anime, uçsuz bucaksız bir deliği keşfeden çocukların hikayesini anlatıyor. Görsel açıdan muhteşem ve duygusal olarak etkileyici.`;
     }
     
     // What to watch today
@@ -101,7 +113,7 @@ Bugünkü moralinizi yükseltecek ve sizi farklı bir dünyaya götürecek müke
     }
     
     // Anime analysis - summary
-    if (prompt.includes('hakkında 150-200 kelimelik düşündürücü')) {
+    if (prompt.includes('hakkında 150-200 kelimelik düşündürücü') || prompt.includes('analiz') || prompt.includes('özet')) {
       const animeTitle = prompt.match(/"([^"]+)"/)?.[1] || "bu anime";
       return `"${animeTitle}" modern anime dünyasının en etkileyici yapıtlarından biridir. Hikâye, karmaşık karakterler ve derin temaları harmanlayarak izleyiciye sıradan bir anime deneyiminin ötesinde bir yolculuk sunar.
 
@@ -113,7 +125,7 @@ Bu yapıt sadece bir anime değil, aynı zamanda insanlık durumuna dair derin b
     }
     
     // Character analysis
-    if (prompt.includes('karakterlerin kişilik analizi yap')) {
+    if (prompt.includes('karakterlerin kişilik analizi yap') || prompt.includes('karakter')) {
       const animeTitle = prompt.match(/"([^"]+)"/)?.[1] || "bu anime";
       return `## "${animeTitle}" Karakter Analizi
 
@@ -134,6 +146,19 @@ Genellikle komik anlar sağlayan bu karakter, aslında grubun duygusal çapasıd
     return `Anime dünyasında yapabileceğiniz keşifler sınırsızdır! Farklı türlerde birçok yüksek kaliteli yapım bulunuyor. Aksiyon, macera, romantik komedi, bilim kurgu veya fantastik türlerden hangisini tercih ederseniz edin, sizin zevkinize hitap edecek animeler mutlaka vardır.
 
 Kendinize uygun bir anime seçmek için öncelikle ilgi alanlarınızı düşünün. Örneğin, karmaşık hikayeler ve felsefi konular ilginizi çekiyorsa "Attack on Titan" veya "Death Note" gibi yapımlar size uygun olabilir. Daha hafif ve eğlenceli içerikler arıyorsanız "Spy x Family" veya "Kaguya-sama: Love is War" gibi yapımlar tercih edilebilir.
+
+İşte izleyebileceğiniz popüler anime önerileri:
+
+1. **One Piece** - Uzun soluklu macera
+2. **Naruto** - Ninja dünyasında geçen epik yolculuk
+3. **My Hero Academia** - Süper kahramanlık hikayesi
+4. **Tokyo Revengers** - Zamanda yolculuk ve çeteler
+5. **Haikyuu!!** - Voleybol tutkusu
+6. **Your Lie in April** - Duygusal müzik hikayesi
+7. **Hunter x Hunter** - Karmaşık güç sistemleri ve maceraları
+8. **Death Note** - Psikolojik gerilim
+9. **Chainsaw Man** - Modern şeytanlarla mücadele
+10. **Weathering With You** - Doğaüstü romantik hikaye
 
 Anime izlemek sadece bir eğlence değil, aynı zamanda farklı kültürleri ve bakış açılarını tanıma fırsatı sunar. İyi seyirler!`;
   }
