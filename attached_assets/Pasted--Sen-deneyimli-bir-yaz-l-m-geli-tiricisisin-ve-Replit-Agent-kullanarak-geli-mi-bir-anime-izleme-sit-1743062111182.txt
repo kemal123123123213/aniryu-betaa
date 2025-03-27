@@ -1,0 +1,57 @@
+"Sen deneyimli bir yazılım geliştiricisisin ve Replit Agent kullanarak gelişmiş bir anime izleme sitesi oluşturacaksın. Bu site tamamen Türkçe olacak ve aşağıdaki özelliklere sahip olacak. Ayrıca, AniList API entegrasyonu ve özel, animasyonlu bir video player içerecek. Proje, localhostta ve hostingde test edilebilir şekilde yapılandırılacak.
+
+📌 ANA ÖZELLİKLER:
+1️⃣ Kullanıcı Sistemi:
+✅ Kullanıcılar kaydolabilir, giriş yapabilir ve şifre sıfırlayabilir.
+✅ Kullanıcı profilleri olacak (izleme geçmişi, favoriler, önerilenler gibi).
+
+2️⃣ Anime İzleme Sistemi:
+✅ Kullanıcılar altyazılı ve dublajlı olarak anime izleyebilmeli.
+✅ HD kalite ve hızlı yükleme olacak.
+✅ Bölümler arası otomatik geçiş ve kaldığı yerden devam etme özellikleri olacak.
+✅ Özel ve animasyonlu bir video player olacak:
+
+Kendi özel UI tasarımı ve animasyonları olacak.
+
+İleri-geri sarma, hız kontrolü, altyazı seçenekleri, PiP (Picture-in-Picture) modu desteklenecek.
+
+Video oynatırken dinamik efektler (örneğin: hover animasyonları, progress bar efektleri) olacak.
+
+3️⃣ Yapay Zeka Destekli Öneri Sistemi:
+✅ Kullanıcıların izlediği animelere göre öneri sunan bir yapay zeka olacak.
+✅ Öneri sistemi, makine öğrenmesi (ML) algoritmaları ile çalışacak.
+✅ Önerilen animeler ana sayfada gösterilecek ve sürekli güncellenecek.
+
+4️⃣ AniList API Entegrasyonu:
+✅ AniList API kullanarak güncel anime bilgileri çekilecek.
+✅ Kullanıcılar AniList hesaplarıyla giriş yapabilecek.
+✅ Anime açıklamaları, türleri, puanları ve karakter bilgileri API'den alınacak.
+✅ Yeni sezon animeleri ve popüler animeler otomatik olarak güncellenecek.
+
+5️⃣ Beraber İzleme (Watch Party) Sistemi:
+✅ Kullanıcılar arkadaşlarıyla senkronize şekilde anime izleyebilecek.
+✅ Canlı sohbet, emoji reaksiyonları ve sesli/yazılı sohbet olacak.
+✅ Özel veya herkese açık odalar oluşturulabilecek.
+
+6️⃣ Gelişmiş Arama ve Filtreleme:
+✅ Tür, yıl, popülerlik, stüdyo bazlı filtreleme olacak.
+✅ Arama motoru hızlı ve akıllı çalışacak.
+✅ Yeni eklenen ve popüler animeler ana sayfada gösterilecek.
+
+7️⃣ Mobil Uyumlu ve Hızlı Performans:
+✅ Site mobil uyumlu (responsive) olacak.
+✅ Önbellekleme (caching) mekanizmaları ile hızlı çalışacak.
+✅ Gece modu ve kişiselleştirilebilir tema seçenekleri olacak.
+
+8️⃣ Yönetim Paneli:
+✅ Adminler yeni anime ekleyebilecek, düzenleyebilecek, kaldırabilecek.
+✅ Kullanıcı raporları ve site istatistikleri görüntülenebilecek.
+✅ Yapay zeka öneri sisteminin performansı izlenip güncellenebilecek.
+
+🔧 TEKNİK GEREKSİNİMLER:
+💻 Kodlama Dili: Python (Flask / FastAPI) veya JavaScript (Node.js / Express.js)
+🎨 Frontend: React.js / Vue.js
+🗄️ Veritabanı: PostgreSQL veya MongoDB
+🧠 Yapay Zeka: TensorFlow / Scikit-learn / PyTorch
+🔗 Gerçek Zamanlı Watch Party: WebRTC / Socket.io
+🌐 Anime Bilgileri: AniList API
