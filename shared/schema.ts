@@ -16,10 +16,11 @@ export const watchHistory = pgTable("watch_history", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
   animeId: integer("anime_id").notNull(),
-  episodeId: integer("episode_id").notNull(),
+  episodeId: integer("episode_id"),  // Opsiyonel olarak değiştirildi
   progress: integer("progress").notNull().default(0),
   duration: integer("duration").notNull().default(0),
   lastWatched: timestamp("last_watched").defaultNow().notNull(),
+  completed: boolean("completed").default(false),
 });
 
 export const favorites = pgTable("favorites", {
@@ -143,6 +144,10 @@ export const insertWatchHistorySchema = createInsertSchema(watchHistory).pick({
   episodeId: true,
   progress: true,
   duration: true,
+  completed: true,
+}).extend({
+  episodeId: z.number().optional(),
+  completed: z.boolean().optional().default(false)
 });
 
 export const insertFavoriteSchema = createInsertSchema(favorites).pick({
@@ -174,6 +179,9 @@ export const insertEpisodeCommentSchema = createInsertSchema(episodeComments).pi
   content: true,
   timestamp: true,
   parentId: true,
+}).extend({
+  timestamp: z.number().optional(),
+  parentId: z.number().optional()
 });
 
 export const insertEpisodeReactionSchema = createInsertSchema(episodeReactions).pick({

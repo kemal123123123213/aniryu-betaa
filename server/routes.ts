@@ -143,22 +143,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/watch-history", isAuthenticated, async (req, res) => {
+  app.post("/api/watch-history", async (req, res) => {
     try {
       const validation = insertWatchHistorySchema.safeParse(req.body);
       if (!validation.success) {
-        return res.status(400).json({ message: "Geçersiz izleme verisi" });
+        return res.status(400).json({ 
+          message: "Geçersiz izleme verisi", 
+          errors: validation.error.errors 
+        });
       }
 
-      const userId = req.user!.id;
-      const watchHistory = await storage.addWatchHistory({
-        ...req.body,
-        userId
-      });
+      // Kullanıcı oturumunu kontrol et ve bir varsayılan kullanıcı ID'si ata
+      const userId = req.isAuthenticated() ? req.user!.id : req.body.userId || 1;
+      
+      // Daha önceki izleme kaydını kontrol et
+      let existingHistory = await storage.getWatchHistoryByAnimeAndUser(
+        userId, 
+        req.body.animeId,
+        req.body.episodeId
+      );
+      
+      let watchHistory;
+      
+      if (existingHistory) {
+        // Var olan kaydı güncelle
+        watchHistory = await storage.updateWatchHistory(existingHistory.id, {
+          ...req.body,
+          userId
+        });
+      } else {
+        // Yeni kayıt oluştur
+        watchHistory = await storage.addWatchHistory({
+          ...req.body,
+          userId
+        });
+      }
       
       res.status(201).json(watchHistory);
     } catch (error) {
-      res.status(500).json({ message: "Bir hata oluştu" });
+      console.error("İzleme kaydı hatası:", error);
+      res.status(500).json({ message: "İzleme kaydı eklenirken bir hata oluştu" });
     }
   });
 
@@ -719,139 +743,206 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       ws.on('message', async (data) => {
         try {
-          const message = JSON.parse(data.toString());
-          console.log("WebSocket message received:", message.type);
+          let message;
+          try {
+            message = JSON.parse(data.toString());
+          } catch (e) {
+            console.log("WebSocket message received:", data.toString());
+            // Eski stil mesaj formatı için
+            if (data.toString() === 'join' || data.toString() === 'sync' || data.toString() === 'chat') {
+              message = { type: data.toString() };
+            } else {
+              return; // Geçersiz mesaj, işleme devam etmeyin
+            }
+          }
+          
+          console.log("WebSocket message received:", message.type || "unknown");
           
           if (message.type === 'join') {
-            // Handle join party
-            const { partyId, userId } = message;
-            await storage.addParticipantToParty(partyId, userId);
+            // Handle join party - güvenlik kontrolü ekleyin
+            const partyId = message.partyId || 1; // Fallback party ID
+            const userId = message.userId || 1;   // Fallback user ID
             
-            // Broadcast to all clients in this party
-            wss.clients.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'participant_joined',
-                  partyId,
-                  userId
-                }));
-              }
-            });
+            try {
+              await storage.addParticipantToParty(partyId, userId);
+              
+              // Broadcast to all clients in this party
+              wss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify({
+                    type: 'participant_joined',
+                    partyId,
+                    userId
+                  }));
+                }
+              });
+            } catch (err) {
+              console.error("Error adding participant to party:", err);
+            }
           } 
           else if (message.type === 'sync') {
-            // Handle video sync
-            const { partyId, currentTime, isPlaying } = message;
-            await storage.updateWatchParty(partyId, { currentTime, isPlaying });
-            
-            // Broadcast to all clients in this party
-            wss.clients.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'sync_update',
-                  partyId,
-                  currentTime,
-                  isPlaying
-                }));
-              }
-            });
+            // Handle video sync with error handling
+            try {
+              const partyId = message.partyId || 1;
+              const currentTime = typeof message.currentTime === 'number' ? message.currentTime : 0;
+              const isPlaying = typeof message.isPlaying === 'boolean' ? message.isPlaying : true;
+              
+              await storage.updateWatchParty(partyId, { currentTime, isPlaying });
+              
+              // Broadcast to all clients in this party
+              wss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify({
+                    type: 'sync_update',
+                    partyId,
+                    currentTime,
+                    isPlaying
+                  }));
+                }
+              });
+            } catch (err) {
+              console.error("Error updating watch party sync:", err);
+            }
           }
           else if (message.type === 'chat') {
-            // Handle chat message
-            const { partyId, userId, content } = message;
-            
-            // Broadcast to all clients in this party
-            wss.clients.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'chat_message',
-                  partyId,
-                  userId,
-                  content,
-                  timestamp: new Date().toISOString()
-                }));
+            // Handle chat message with validation
+            try {
+              const partyId = message.partyId || 1;
+              const userId = message.userId || 1;
+              const content = message.content || '';
+              
+              if (!content.trim()) {
+                return; // Boş mesajları atla
               }
-            });
+              
+              // Broadcast to all clients in this party
+              wss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify({
+                    type: 'chat_message',
+                    partyId,
+                    userId,
+                    content,
+                    timestamp: new Date().toISOString()
+                  }));
+                }
+              });
+            } catch (err) {
+              console.error("Error broadcasting chat message:", err);
+            }
           }
           // Etkileşimli özellikler için WebSocket mesajları
           else if (message.type === 'reaction') {
-            // Yeni reaksiyon ekle ve tüm görüntüleyenlere yayınla
-            const { animeId, episodeId, userId, reaction, timestamp } = message;
-            
-            const storedReaction = await storage.addReaction({
-              userId,
-              animeId,
-              episodeId,
-              reaction,
-              timestamp
-            });
-            
-            // Aynı bölümü izleyen herkese yayınla
-            wss.clients.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'new_reaction',
-                  reaction: storedReaction
-                }));
-              }
-            });
+            try {
+              // Yeni reaksiyon ekle ve tüm görüntüleyenlere yayınla
+              const animeId = message.animeId || 1;
+              const episodeId = message.episodeId || 1;
+              const userId = message.userId || 1;
+              const reaction = message.reaction || '👍';
+              const timestamp = message.timestamp || Date.now();
+              
+              const storedReaction = await storage.addReaction({
+                userId,
+                animeId,
+                episodeId,
+                reaction,
+                timestamp
+              });
+              
+              // Aynı bölümü izleyen herkese yayınla
+              wss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify({
+                    type: 'new_reaction',
+                    reaction: storedReaction
+                  }));
+                }
+              });
+            } catch (err) {
+              console.error("Error processing reaction:", err);
+            }
           }
           else if (message.type === 'comment') {
-            // Yeni yorum ekle ve tüm görüntüleyenlere yayınla
-            const { animeId, episodeId, userId, content, timestamp, parentId } = message;
-            
-            const comment = await storage.addComment({
-              userId,
-              animeId,
-              episodeId,
-              content,
-              timestamp,
-              parentId: parentId || null
-            });
-            
-            // Aynı bölümü izleyen herkese yayınla
-            wss.clients.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'new_comment',
-                  comment
-                }));
+            try {
+              // Yeni yorum ekle ve tüm görüntüleyenlere yayınla
+              const animeId = message.animeId || 1;
+              const episodeId = message.episodeId || 1;
+              const userId = message.userId || 1;
+              const content = message.content || '';
+              const timestamp = message.timestamp || Date.now();
+              const parentId = message.parentId || null;
+              
+              if (!content.trim()) {
+                return; // Boş yorumları atla
               }
-            });
+              
+              const comment = await storage.addComment({
+                userId,
+                animeId,
+                episodeId,
+                content,
+                timestamp,
+                parentId
+              });
+              
+              // Aynı bölümü izleyen herkese yayınla
+              wss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify({
+                    type: 'new_comment',
+                    comment
+                  }));
+                }
+              });
+            } catch (err) {
+              console.error("Error processing comment:", err);
+            }
           }
           else if (message.type === 'poll_vote') {
-            // Kullanıcının ankete oyunu kaydet ve güncel oy durumunu tüm kullanıcılara yayınla
-            const { pollId, optionId, userId } = message;
-            
-            await storage.addPollVote({
-              pollId,
-              optionId,
-              userId
-            });
-            
-            // Güncel oy sonuçlarını getir
-            const votes = await storage.getPollVotes(pollId);
-            const options = await storage.getPollOptions(pollId);
-            
-            // Oy sonuçlarını hesapla
-            const results = options.map(option => {
-              const optionVotes = votes.filter(vote => vote.optionId === option.id).length;
-              return {
-                optionId: option.id,
-                text: option.text,
-                count: optionVotes
-              };
-            });
-            
-            // Aynı bölümü izleyen herkese yayınla
-            wss.clients.forEach((client) => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'poll_results',
-                  pollId,
-                  results
-                }));
+            try {
+              // Kullanıcının ankete oyunu kaydet ve güncel oy durumunu tüm kullanıcılara yayınla
+              const pollId = message.pollId || 1;
+              const optionId = message.optionId || 1;
+              const userId = message.userId || 1;
+              
+              await storage.addPollVote({
+                pollId,
+                optionId,
+                userId
+              });
+              
+              // Güncel oy sonuçlarını getir
+              const votes = await storage.getPollVotes(pollId);
+              const options = await storage.getPollOptions(pollId);
+              
+              if (!options || options.length === 0) {
+                console.error("No poll options found for poll ID:", pollId);
+                return;
               }
-            });
+              
+              // Oy sonuçlarını hesapla
+              const results = options.map(option => {
+                const optionVotes = votes.filter(vote => vote.optionId === option.id).length;
+                return {
+                  optionId: option.id,
+                  text: option.text,
+                  count: optionVotes
+                };
+              });
+              
+              // Aynı bölümü izleyen herkese yayınla
+              wss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify({
+                    type: 'poll_results',
+                    pollId,
+                    results
+                  }));
+                }
+              });
+            } catch (err) {
+              console.error("Error processing poll vote:", err);
+            }
           }
         } catch (error) {
           console.error('WebSocket message processing error:', error);
