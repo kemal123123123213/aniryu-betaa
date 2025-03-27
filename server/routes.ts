@@ -19,22 +19,21 @@ function isAuthenticated(req: any, res: any, next: any) {
 }
 
 function isAdmin(req: any, res: any, next: any) {
-  // Demo moduyla çalıştığımız için, tüm istek yapanlar admin olarak işlem yapabilsin
-  // 1. Oturum açan herkes admin olsun
-  if (req.isAuthenticated()) {
+  // Kullanıcının oturum açmış olması ve rolünün 'admin' olması gerekir
+  if (req.isAuthenticated() && req.user.role === 'admin') {
     return next();
   }
   
-  // 2. Özel admin erişim kodu (query param) ile de erişim sağlansın
+  // Özel admin erişim kodu (query param) ile de erişim sağlansın
   const adminToken = req.headers['x-admin-token'] || req.query.adminToken;
   if (adminToken === 'admin123') {
     return next();
   }
   
-  // Her durumda erişim sağla (demo amaçlı)
+  // Demo modu için erişim sağla
   return next();
   
-  // Gerçek dünyada kullan:
+  // Gerçek dünyada sadece bu kullan:
   // res.status(403).json({ message: "Bu işlem için admin yetkisi gerekiyor" });
 }
 
@@ -42,6 +41,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
   setupAuth(app);
   
+  // Admin rol ataması için yeni endpoint
+  app.post("/api/admin/set-role", isAdmin, async (req, res) => {
+    try {
+      const { userId, role } = req.body;
+      
+      if (!userId || !role) {
+        return res.status(400).json({ message: "Kullanıcı ID ve rol belirtilmelidir" });
+      }
+      
+      if (!["user", "admin"].includes(role)) {
+        return res.status(400).json({ message: "Geçersiz rol. 'user' veya 'admin' olmalıdır" });
+      }
+      
+      const updatedUser = await storage.updateUser(userId, { role });
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Kullanıcı bulunamadı" });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `${updatedUser.username} kullanıcısına ${role} rolü atandı`,
+        user: updatedUser
+      });
+    } catch (error) {
+      console.error("Rol atama hatası:", error);
+      res.status(500).json({ message: "Rol atanırken bir hata oluştu" });
+    }
+  });
+
   // Admin API routes
   app.get("/api/admin/users", isAdmin, async (req, res) => {
     try {

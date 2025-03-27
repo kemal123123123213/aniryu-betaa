@@ -114,6 +114,32 @@ export default function AdminPage() {
       });
     },
   });
+  
+  // Rol değiştirme API'ı
+  const setRoleMutation = useMutation({
+    mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
+      const response = await apiRequest("POST", `/api/admin/set-role`, { userId, role });
+      if (!response.ok) {
+        throw new Error("Kullanıcı rolü değiştirilirken bir hata oluştu");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingUser(null);
+      toast({
+        title: "Başarılı",
+        description: data.message || "Kullanıcı rolü güncellendi.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Hata",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const deleteUserMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -139,13 +165,14 @@ export default function AdminPage() {
     },
   });
 
-  // Handle edit save
+  // Handle edit save - yeni rol değiştirme API'ını kullanalım
   const handleSaveEdit = () => {
     if (!editingUser) return;
     
-    updateUserMutation.mutate({
-      id: editingUser.id,
-      data: { role: editedRole }
+    // Rol değiştirme API'ını kullan
+    setRoleMutation.mutate({
+      userId: editingUser.id,
+      role: editedRole
     });
   };
 
@@ -220,9 +247,9 @@ export default function AdminPage() {
                                     variant="ghost" 
                                     onClick={handleSaveEdit} 
                                     className="h-6 w-6"
-                                    disabled={updateUserMutation.isPending}
+                                    disabled={setRoleMutation.isPending}
                                   >
-                                    {updateUserMutation.isPending ? 
+                                    {setRoleMutation.isPending ? 
                                       <Loader2 className="h-3 w-3 animate-spin" /> : 
                                       <Check className="h-3 w-3" />
                                     }

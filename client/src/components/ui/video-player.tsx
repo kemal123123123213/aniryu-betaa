@@ -607,7 +607,12 @@ export function VideoPlayer({
       ref={containerRef}
       className={containerClasses}
       onMouseMove={handleMouseMove}
-      style={getSubtitleStyles()}
+      onTouchStart={handleMouseMove}
+      style={{
+        ...getSubtitleStyles(),
+        maxHeight: '80vh', // Ekranda maksimum yükseklik sınırı
+        margin: '0 auto' // Ortalama
+      }}
     >
       <ReactPlayer
         ref={playerRef}
@@ -625,7 +630,10 @@ export function VideoPlayer({
         config={{
           file: {
             attributes: {
-              crossOrigin: "anonymous"
+              crossOrigin: "anonymous",
+              playsInline: true, // iOS için oynatmayı iyileştirir
+              controlsList: "nodownload", // İndirme seçeneğini gizle
+              onContextMenu: (e: any) => e.preventDefault() // Sağ tıklama menüsünü engelle
             },
             tracks: subtitles.map(subtitle => ({
               kind: 'subtitles',
@@ -1039,34 +1047,32 @@ export function VideoPlayer({
                 </Tooltip>
               </TooltipProvider>
               
-              {/* Watch Party butonu */}
-              {user && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className={cn(
-                          "text-white hover:text-primary transition-colors relative",
-                          activeParty ? "text-primary" : ""
-                        )}
-                        onClick={() => setShowChatPanel(!showChatPanel)}
-                      >
-                        <Users className="h-5 w-5" />
-                        {activeParty && participants.length > 1 && (
-                          <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
-                            {participants.length}
-                          </span>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <p>Birlikte İzle</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+              {/* Watch Party butonu - Artık tüm kullanıcılar için erişilebilir */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={cn(
+                        "text-white hover:text-primary transition-colors relative",
+                        activeParty ? "text-primary" : ""
+                      )}
+                      onClick={() => setShowChatPanel(!showChatPanel)}
+                    >
+                      <Users className="h-5 w-5" />
+                      {activeParty && participants.length > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                          {participants.length}
+                        </span>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>Birlikte İzle</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
